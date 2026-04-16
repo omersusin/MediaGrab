@@ -28,6 +28,9 @@ class GrabberManager @Inject constructor(
     private val _isScanning = MutableStateFlow(false)
     val isScanning: StateFlow<Boolean> = _isScanning.asStateFlow()
 
+    private val _scanResults = MutableStateFlow<List<CachedMedia>>(emptyList())
+    val scanResults: StateFlow<List<CachedMedia>> = _scanResults.asStateFlow()
+
     fun startGrabber() {
         _isActive.value = true
     }
@@ -40,6 +43,8 @@ class GrabberManager @Inject constructor(
         _isScanning.value = true
         try {
             val cached = cacheScanner.scanCache()
+            _scanResults.value = cached
+            
             val mediaList = cached.map { cachedMedia ->
                 GrabbedMediaEntity(
                     id = UUID.randomUUID().toString(),
@@ -55,7 +60,7 @@ class GrabberManager @Inject constructor(
             }
             grabberRepository.insertAllGrabbedMedia(mediaList)
             _capturedMedia.value = mediaList
-            mediaList
+            cached
         } finally {
             _isScanning.value = false
         }

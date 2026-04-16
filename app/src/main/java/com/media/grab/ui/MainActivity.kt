@@ -30,6 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -44,7 +45,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // Handle shared URL
         val sharedUrl = intent?.getStringExtra(Intent.EXTRA_TEXT)
 
         setContent {
@@ -77,7 +77,7 @@ fun MainScreen(sharedUrl: String? = null) {
         bottomBar = {
             NavigationBar(
                 containerColor = MaterialTheme.colorScheme.surface,
-                tonalElevation = androidx.compose.ui.unit.dp.times(0)
+                tonalElevation = 0.dp
             ) {
                 items.forEach { item ->
                     val selected = currentDestination?.hierarchy?.any { it.route == item.route } == true

@@ -1,6 +1,5 @@
 package com.media.grab.ui.components
 
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -10,7 +9,6 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Paste
 import androidx.compose.material.icons.filled.Radar
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -28,7 +26,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -81,7 +78,7 @@ fun UrlInputBar(
                     }
                 }
             ) {
-                Icon(Icons.Default.Paste, contentDescription = "Paste")
+                Icon(Icons.Default.Download, contentDescription = "Paste")
             }
 
             IconButton(
