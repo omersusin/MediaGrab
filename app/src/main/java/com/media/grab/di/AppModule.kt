@@ -7,6 +7,14 @@ import com.media.grab.data.local.dao.DownloadDao
 import com.media.grab.data.local.dao.GrabbedMediaDao
 import com.media.grab.data.local.dao.HistoryDao
 import com.media.grab.data.preferences.PreferencesManager
+import com.media.grab.data.repository.DownloadRepository
+import com.media.grab.data.repository.DownloadRepositoryImpl
+import com.media.grab.data.repository.GrabberRepository
+import com.media.grab.data.repository.GrabberRepositoryImpl
+import com.media.grab.data.repository.HistoryRepository
+import com.media.grab.data.repository.HistoryRepositoryImpl
+import com.media.grab.grabber.CacheScanner
+import dagger.Binds
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -44,4 +52,21 @@ object AppModule {
 
     @Provides @IoDispatcher fun io(): CoroutineDispatcher = Dispatchers.IO
     @Provides @MainDispatcher fun main(): CoroutineDispatcher = Dispatchers.Main
+
+    @Provides @Singleton
+    fun cacheScanner(@ApplicationContext ctx: Context, @IoDispatcher io: CoroutineDispatcher): CacheScanner =
+        CacheScanner(ctx, io)
+}
+
+@Module @InstallIn(SingletonComponent::class)
+abstract class RepositoryModule {
+
+    @Binds @Singleton
+    abstract fun bindDownloadRepository(impl: DownloadRepositoryImpl): DownloadRepository
+
+    @Binds @Singleton
+    abstract fun bindGrabberRepository(impl: GrabberRepositoryImpl): GrabberRepository
+
+    @Binds @Singleton
+    abstract fun bindHistoryRepository(impl: HistoryRepositoryImpl): HistoryRepository
 }
