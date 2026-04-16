@@ -4,6 +4,7 @@ import android.content.Context
 import com.media.grab.data.local.entity.GrabbedMediaEntity
 import com.media.grab.data.repository.GrabberRepository
 import com.media.grab.di.IoDispatcher
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -13,7 +14,7 @@ import java.util.UUID
 import javax.inject.Inject
 
 class GrabberManager @Inject constructor(
-    private val context: Context,
+    @ApplicationContext private val context: Context,
     private val cacheScanner: CacheScanner,
     private val grabberRepository: GrabberRepository,
     @IoDispatcher private val io: CoroutineDispatcher
@@ -40,7 +41,6 @@ class GrabberManager @Inject constructor(
         try {
             val cached = cacheScanner.scanCache()
             val mediaList = cached.map { cachedMedia ->
-                val detected = MediaDetector.detectPlatform(cachedMedia.path)
                 GrabbedMediaEntity(
                     id = UUID.randomUUID().toString(),
                     url = cachedMedia.path,

@@ -2,13 +2,14 @@ package com.media.grab.grabber
 
 import android.content.Context
 import com.media.grab.di.IoDispatcher
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 import java.io.File
 import javax.inject.Inject
 
 class CacheScanner @Inject constructor(
-    private val context: Context,
+    @ApplicationContext private val context: Context,
     @IoDispatcher private val io: CoroutineDispatcher
 ) {
     private val mediaExtensions = listOf(".mp4", ".m4v", ".webm", ".mkv", ".3gp", ".mp3", ".m4a", ".aac", ".wav", ".ogg")
@@ -16,7 +17,6 @@ class CacheScanner @Inject constructor(
     suspend fun scanCache(): List<CachedMedia> = withContext(io) {
         val mediaList = mutableListOf<CachedMedia>()
 
-        // Scan common cache directories
         val cacheDirs = listOf(
             File(context.cacheDir, "video"),
             File(context.cacheDir, "media"),
