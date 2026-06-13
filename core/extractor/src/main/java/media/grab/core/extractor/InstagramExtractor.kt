@@ -5,6 +5,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.json.JSONException
 import org.json.JSONObject
 
 object InstagramExtractor {
@@ -31,21 +32,25 @@ object InstagramExtractor {
             val json = JSONObject(response.body?.string() ?: return@withContext null)
             val mediaData = json.getJSONObject("data").getJSONObject("xdt_shortcode_media")
 
-            // Try video first
+            // Video
             val videoUrl = mediaData.optString("video_url", null)
-            if (videoUrl != null && videoUrl.isNotEmpty()) return@withContext videoUrl
+            if (!videoUrl.isNullOrEmpty()) return@withContext videoUrl
 
             // Carousel
             val carousel = mediaData.optJSONArray("edge_sidecar_to_children")
             if (carousel != null && carousel.length() > 0) {
                 val firstNode = carousel.getJSONObject(0).getJSONObject("node")
                 val carouselVideo = firstNode.optString("video_url", null)
-                if (carouselVideo != null && carouselVideo.isNotEmpty()) return@withContext carouselVideo
+                if (!carouselVideo.isNullOrEmpty()) return@withContext carouselVideo
                 return@withContext firstNode.optString("display_url", null)
             }
 
             // Image
             return@withContext mediaData.optString("display_url", null)
+        } catch (e: JSONException) {
+            // GraphQL response yapısı değişmiş olabilir, hatayı loglayıp null dön
+            e.printStackTrace()
+            return@withContext null
         } catch (e: Exception) {
             e.printStackTrace()
             return@withContext null
@@ -53,7 +58,10 @@ object InstagramExtractor {
     }
 
     private fun extractShortcode(url: String): String? {
-        val regex = Regex("(?:instagram\\.com/(?:p|reel|tv)/([A-Za-z0-9_-]+))")
-        return regex.find(url)?.groupValues?.get(1)
+        // Desteklenen formatlar: /p/CODE, /reel/CODE, /tv/CODE, /stories/USER/CODE
+        val regex = Regex("(?:instagram\\.com/(?:p|reel|tv)/([A-Za-z0-9_-]+)|stories/([A-Za-z0-9_.-]+)/(\\d+))")
+        val match = regex.find(url) ?: return null
+        // Grup 1: p/reel/tv kısa kodu, Grup 3: stories ID
+        return match.groupValues[1].ifEmpty { match.groupValues[3] }
     }
 }
