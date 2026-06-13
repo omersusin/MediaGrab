@@ -5,29 +5,38 @@ import kotlinx.coroutines.withContext
 import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import org.json.JSONException
 import org.json.JSONObject
 
 object InstagramExtractor {
 
-    private val client = OkHttpClient()
+    private val client = OkHttpClient.Builder()
+        .followRedirects(true)
+        .followSslRedirects(true)
+        .build()
 
     suspend fun extractMediaUrl(postUrl: String): String? = withContext(Dispatchers.IO) {
-        val shortcode = extractShortcode(postUrl) ?: return@withContext null
-        val docId = "10015901848480474"
-        val variables = """{"shortcode":"$shortcode"}"""
-        val requestBody = FormBody.Builder()
-            .add("doc_id", docId)
-            .add("variables", variables)
-            .build()
-        val request = Request.Builder()
-            .url("https://www.instagram.com/api/graphql")
-            .post(requestBody)
-            .addHeader("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36")
-            .addHeader("X-IG-App-ID", "936619743392459")
-            .build()
-
         try {
+            // If it's a /share/ link, follow redirects to get the real URL first
+            val resolvedUrl = if (postUrl.contains("/share/")) {
+                resolveShareUrl(postUrl) ?: return@withContext null
+            } else {
+                postUrl
+            }
+
+            val shortcode = extractShortcode(resolvedUrl) ?: return@withContext null
+            val docId = "10015901848480474"
+            val variables = """{"shortcode":"$shortcode"}"""
+            val requestBody = FormBody.Builder()
+                .add("doc_id", docId)
+                .add("variables", variables)
+                .build()
+            val request = Request.Builder()
+                .url("https://www.instagram.com/api/graphql")
+                .post(requestBody)
+                .addHeader("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36")
+                .addHeader("X-IG-App-ID", "936619743392459")
+                .build()
+
             val response = client.newCall(request).execute()
             val json = JSONObject(response.body?.string() ?: return@withContext null)
             val mediaData = json.getJSONObject("data").getJSONObject("xdt_shortcode_media")
@@ -47,21 +56,33 @@ object InstagramExtractor {
 
             // Image
             return@withContext mediaData.optString("display_url", null)
-        } catch (e: JSONException) {
-            // GraphQL response yapısı değişmiş olabilir, hatayı loglayıp null dön
-            e.printStackTrace()
-            return@withContext null
         } catch (e: Exception) {
             e.printStackTrace()
             return@withContext null
         }
     }
 
+    private fun resolveShareUrl(shareUrl: String): String? {
+        return try {
+            val request = Request.Builder()
+                .url(shareUrl)
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
+                .build()
+            client.newCall(request).execute().use { response ->
+                response.request.url.toString()
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     private fun extractShortcode(url: String): String? {
-        // Desteklenen formatlar: /p/CODE, /reel/CODE, /tv/CODE, /stories/USER/CODE
-        val regex = Regex("(?:instagram\\.com/(?:p|reel|tv)/([A-Za-z0-9_-]+)|stories/([A-Za-z0-9_.-]+)/(\\d+))")
-        val match = regex.find(url) ?: return null
-        // Grup 1: p/reel/tv kısa kodu, Grup 3: stories ID
-        return match.groupValues[1].ifEmpty { match.groupValues[3] }
+        // Supports: /p/, /reel/, /reels/, /tv/, /stories/
+        val regex = Regex(
+            "(?:https?://)?(?:www\\.)?instagram\\.com/" +
+            "(?:stories/[a-zA-Z0-9._-]+/|p/|reel/|reels/|tv/|share/)" +
+            "([a-zA-Z0-9_-]+)"
+        )
+        return regex.find(url)?.groupValues?.get(1)
     }
 }
