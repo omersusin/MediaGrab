@@ -1,6 +1,0 @@
--keep class com.media.grab.data.local.entity.** { *; }
--keep class * extends androidx.room.RoomDatabase
--keep @androidx.room.Entity class *
--dontwarn okhttp3.**
--dontwarn okio.**
--keep class okhttp3.** { *; }
