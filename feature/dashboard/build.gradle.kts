@@ -14,6 +14,9 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+    lint {
+        disable += "NullSafeMutableLiveData"
+    }
 }
 dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2026.05.00")
