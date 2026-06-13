@@ -18,7 +18,6 @@ class OverlayManager(private val context: Context) {
         lifecycleOwner.initLifecycle()
         val composeView = ComposeView(context).apply {
             setViewTreeLifecycleOwner(lifecycleOwner)
-            setViewTreeSavedStateRegistryOwner(lifecycleOwner)
             setContent {
                 androidx.compose.material3.MaterialTheme {
                     OverlayButton(downloadState)

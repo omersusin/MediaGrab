@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">MediaGrab</string>
+    <string name="accessibility_service_description">MediaGrab uses Accessibility Service to detect social media posts and provide a download button. No personal data is collected or transmitted.</string>
+    <string name="download">Download</string>
+</resources>
