@@ -1,6 +1,7 @@
 package media.grab.os
 
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.widget.Toast
@@ -41,24 +42,47 @@ class MainActivity : ComponentActivity() {
             val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT) ?: return
             if (sharedText.isNotBlank()) {
                 lifecycleScope.launch {
-                    val downloadUrl = resolveDownloadUrl(sharedText)
-                    if (downloadUrl != null) {
-                        val serviceIntent = Intent(this@MainActivity, DownloadService::class.java).apply {
-                            action = DownloadService.ACTION_DOWNLOAD
-                            putExtra(DownloadService.EXTRA_URL, downloadUrl)
+                    try {
+                        val downloadUrl = resolveDownloadUrl(sharedText)
+                        if (downloadUrl != null) {
+                            val serviceIntent = Intent(this@MainActivity, DownloadService::class.java).apply {
+                                action = DownloadService.ACTION_DOWNLOAD
+                                putExtra(DownloadService.EXTRA_URL, downloadUrl)
+                            }
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                // Android 12+ requires explicit foreground service start
+                                try {
+                                    startForegroundService(serviceIntent)
+                                } catch (e: android.app.ForegroundServiceStartNotAllowedException) {
+                                    Toast.makeText(
+                                        this@MainActivity,
+                                        "App is in background, cannot start download",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                    return@launch
+                                }
+                            } else {
+                                startService(serviceIntent)
+                            }
+                            Toast.makeText(
+                                this@MainActivity,
+                                "Download started",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        } else {
+                            Toast.makeText(
+                                this@MainActivity,
+                                "Could not extract media from this link",
+                                Toast.LENGTH_SHORT
+                            ).show()
                         }
-                        startForegroundService(serviceIntent)
+                    } catch (e: Exception) {
                         Toast.makeText(
                             this@MainActivity,
-                            "Download started",
-                            Toast.LENGTH_SHORT
+                            "Error: ${e.message}",
+                            Toast.LENGTH_LONG
                         ).show()
-                    } else {
-                        Toast.makeText(
-                            this@MainActivity,
-                            "Could not extract media from this link",
-                            Toast.LENGTH_SHORT
-                        ).show()
+                        e.printStackTrace()
                     }
                 }
             }
@@ -66,26 +90,19 @@ class MainActivity : ComponentActivity() {
     }
 
     private suspend fun resolveDownloadUrl(sharedText: String): String? {
-        // Try Instagram
         if (sharedText.contains("instagram.com")) {
             return InstagramExtractor.extractMediaUrl(sharedText)
         }
-        // Try TikTok (placeholder)
+        // Diğer platformlar için yer tutucular
         if (sharedText.contains("tiktok.com") || sharedText.contains("vm.tiktok")) {
-            // TODO: TikTok extractor
             return null
         }
-        // Try Twitter/X (placeholder)
         if (sharedText.contains("twitter.com") || sharedText.contains("x.com")) {
-            // TODO: Twitter extractor
             return null
         }
-        // Try Facebook (placeholder)
         if (sharedText.contains("facebook.com") || sharedText.contains("fb.watch")) {
-            // TODO: Facebook extractor
             return null
         }
-        // If nothing matched, try to use the URL directly (maybe it's already a media URL)
         return if (sharedText.startsWith("http")) sharedText else null
     }
 
