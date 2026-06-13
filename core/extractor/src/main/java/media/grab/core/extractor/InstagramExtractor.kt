@@ -30,19 +30,21 @@ object InstagramExtractor {
             val response = client.newCall(request).execute()
             val json = JSONObject(response.body?.string() ?: return@withContext null)
             val mediaData = json.getJSONObject("data").getJSONObject("xdt_shortcode_media")
-            // Try video first, then carousel, then image
-            val videoUrl = mediaData.optString("video_url", null)
-            if (!videoUrl.isNullOrEmpty()) return@withContext videoUrl
 
+            // Try video first
+            val videoUrl = mediaData.optString("video_url", null)
+            if (videoUrl != null && videoUrl.isNotEmpty()) return@withContext videoUrl
+
+            // Carousel
             val carousel = mediaData.optJSONArray("edge_sidecar_to_children")
             if (carousel != null && carousel.length() > 0) {
-                // Return first item's media URL (simplified)
                 val firstNode = carousel.getJSONObject(0).getJSONObject("node")
                 val carouselVideo = firstNode.optString("video_url", null)
-                if (!carouselVideo.isNullOrEmpty()) return@withContext carouselVideo
+                if (carouselVideo != null && carouselVideo.isNotEmpty()) return@withContext carouselVideo
                 return@withContext firstNode.optString("display_url", null)
             }
 
+            // Image
             return@withContext mediaData.optString("display_url", null)
         } catch (e: Exception) {
             e.printStackTrace()
