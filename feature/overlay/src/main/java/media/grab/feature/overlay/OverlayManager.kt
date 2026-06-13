@@ -5,6 +5,7 @@ import android.graphics.PixelFormat
 import android.view.Gravity
 import android.view.WindowManager
 import androidx.compose.ui.platform.ComposeView
+import androidx.lifecycle.setViewTreeLifecycleOwner
 import kotlinx.coroutines.flow.MutableStateFlow
 
 class OverlayManager(private val context: Context) {
