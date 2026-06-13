@@ -12,6 +12,7 @@ class MediaAccessibilityService : AccessibilityService() {
 
     companion object {
         val currentMediaBounds: MutableStateFlow<Rect?> = MutableStateFlow(null)
+        val currentMediaUrl: MutableStateFlow<String?> = MutableStateFlow(null)
         private val SUPPORTED_PACKAGES = setOf(
             "com.instagram.android",
             "com.zhiliaoapp.musically",
@@ -25,6 +26,7 @@ class MediaAccessibilityService : AccessibilityService() {
         val packageName = event?.packageName?.toString() ?: return
         if (SUPPORTED_PACKAGES.contains(packageName)) {
             findMediaContainer(rootNode, packageName)
+            findShareLink(rootNode)
         }
     }
 
@@ -46,6 +48,21 @@ class MediaAccessibilityService : AccessibilityService() {
 
         for (i in 0 until node.childCount) {
             node.getChild(i)?.let { findMediaContainer(it, packageName) }
+        }
+    }
+
+    private fun findShareLink(node: AccessibilityNodeInfo) {
+        // Try to find a clickable item with text "Link" or a URL-like text
+        if (node.isClickable && node.text != null) {
+            val text = node.text.toString()
+            if (text.contains("instagram.com") || text.contains("tiktok.com") ||
+                text.contains("twitter.com") || text.contains("facebook.com")) {
+                currentMediaUrl.value = text
+                Log.d("MediaGrab", "Found share link: $text")
+            }
+        }
+        for (i in 0 until node.childCount) {
+            node.getChild(i)?.let { findShareLink(it) }
         }
     }
 
