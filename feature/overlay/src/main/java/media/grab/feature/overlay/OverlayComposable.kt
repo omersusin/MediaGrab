@@ -17,10 +17,13 @@ import kotlinx.coroutines.flow.StateFlow
 enum class DownloadStatus { IDLE, DOWNLOADING, SUCCESS }
 
 @Composable
-fun OverlayButton(downloadState: StateFlow<DownloadStatus>) {
+fun OverlayButton(
+    downloadState: StateFlow<DownloadStatus>,
+    onClick: () -> Unit
+) {
     val state by downloadState.collectAsState()
     FloatingActionButton(
-        onClick = { /* TODO: Trigger extraction and download */ },
+        onClick = onClick,
         modifier = Modifier.size(48.dp),
         containerColor = MaterialTheme.colorScheme.primaryContainer
     ) {

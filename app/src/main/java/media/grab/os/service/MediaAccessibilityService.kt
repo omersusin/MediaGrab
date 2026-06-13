@@ -1,12 +1,13 @@
 package media.grab.os.service
 
 import android.accessibilityservice.AccessibilityService
+import android.content.Intent
 import android.graphics.Rect
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
+import media.grab.feature.overlay.OverlayManager
 
 class MediaAccessibilityService : AccessibilityService() {
 
@@ -21,12 +22,32 @@ class MediaAccessibilityService : AccessibilityService() {
         )
     }
 
+    private var overlayManager: OverlayManager? = null
+    private var lastKnownBounds: Rect? = null
+
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+        overlayManager = OverlayManager(this) {
+            currentMediaUrl.value?.let { url ->
+                val intent = Intent(this, DownloadService::class.java).apply {
+                    action = DownloadService.ACTION_DOWNLOAD
+                    putExtra(DownloadService.EXTRA_URL, url)
+                }
+                startService(intent)
+                overlayManager?.setDownloadState(media.grab.feature.overlay.DownloadStatus.DOWNLOADING)
+                Log.d("MediaGrab", "Download started for: $url")
+            }
+        }
+        Log.d("MediaGrab", "Accessibility service connected")
+    }
+
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         val rootNode = rootInActiveWindow ?: return
         val packageName = event?.packageName?.toString() ?: return
         if (SUPPORTED_PACKAGES.contains(packageName)) {
             findMediaContainer(rootNode, packageName)
             findShareLink(rootNode)
+            updateOverlay()
         }
     }
 
@@ -43,6 +64,7 @@ class MediaAccessibilityService : AccessibilityService() {
             val bounds = Rect()
             node.getBoundsInScreen(bounds)
             currentMediaBounds.value = bounds
+            lastKnownBounds = bounds
             Log.d("MediaGrab", "Media container found: $bounds")
         }
 
@@ -52,7 +74,6 @@ class MediaAccessibilityService : AccessibilityService() {
     }
 
     private fun findShareLink(node: AccessibilityNodeInfo) {
-        // Try to find a clickable item with text "Link" or a URL-like text
         if (node.isClickable && node.text != null) {
             val text = node.text.toString()
             if (text.contains("instagram.com") || text.contains("tiktok.com") ||
@@ -64,6 +85,21 @@ class MediaAccessibilityService : AccessibilityService() {
         for (i in 0 until node.childCount) {
             node.getChild(i)?.let { findShareLink(it) }
         }
+    }
+
+    private fun updateOverlay() {
+        if (lastKnownBounds != null && currentMediaUrl.value != null) {
+            overlayManager?.show()
+            overlayManager?.updatePosition(lastKnownBounds!!)
+        } else {
+            overlayManager?.hide()
+        }
+    }
+
+    override fun onDestroy() {
+        overlayManager?.hide()
+        overlayManager = null
+        super.onDestroy()
     }
 
     override fun onInterrupt() {}
