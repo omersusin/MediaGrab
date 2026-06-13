@@ -3,6 +3,7 @@ package media.grab.os
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -15,6 +16,11 @@ import media.grab.core.extractor.InstagramExtractor
 import media.grab.feature.dashboard.DashboardScreen
 import media.grab.os.service.DownloadService
 import media.grab.os.service.MediaAccessibilityService
+import java.io.File
+import java.io.PrintWriter
+import java.io.StringWriter
+import java.text.SimpleDateFormat
+import java.util.*
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -38,72 +44,64 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleIncomingShareIntent(intent: Intent) {
-        if (intent.action == Intent.ACTION_SEND && intent.type == "text/plain") {
-            val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT) ?: return
-            if (sharedText.isNotBlank()) {
-                lifecycleScope.launch {
-                    try {
-                        val downloadUrl = resolveDownloadUrl(sharedText)
-                        if (downloadUrl != null) {
-                            val serviceIntent = Intent(this@MainActivity, DownloadService::class.java).apply {
-                                action = DownloadService.ACTION_DOWNLOAD
-                                putExtra(DownloadService.EXTRA_URL, downloadUrl)
-                            }
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                                // Android 12+ requires explicit foreground service start
-                                try {
-                                    startForegroundService(serviceIntent)
-                                } catch (e: android.app.ForegroundServiceStartNotAllowedException) {
-                                    Toast.makeText(
-                                        this@MainActivity,
-                                        "App is in background, cannot start download",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                    return@launch
-                                }
-                            } else {
-                                startService(serviceIntent)
-                            }
-                            Toast.makeText(
-                                this@MainActivity,
-                                "Download started",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        } else {
-                            Toast.makeText(
-                                this@MainActivity,
-                                "Could not extract media from this link",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                    } catch (e: Exception) {
-                        Toast.makeText(
-                            this@MainActivity,
-                            "Error: ${e.message}",
-                            Toast.LENGTH_LONG
-                        ).show()
-                        e.printStackTrace()
+        if (intent.action != Intent.ACTION_SEND) return
+        val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
+        if (sharedText.isNullOrBlank()) return
+
+        lifecycleScope.launch {
+            try {
+                val downloadUrl = resolveDownloadUrl(sharedText)
+                if (downloadUrl != null) {
+                    val serviceIntent = Intent(this@MainActivity, DownloadService::class.java).apply {
+                        action = DownloadService.ACTION_DOWNLOAD
+                        putExtra(DownloadService.EXTRA_URL, downloadUrl)
                     }
+                    try {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            startForegroundService(serviceIntent)
+                        } else {
+                            startService(serviceIntent)
+                        }
+                        Toast.makeText(this@MainActivity, "Download started", Toast.LENGTH_SHORT).show()
+                    } catch (e: Exception) {
+                        logError("Failed to start download service", e)
+                        Toast.makeText(this@MainActivity, "Error: ${e.message}", Toast.LENGTH_LONG).show()
+                    }
+                } else {
+                    Toast.makeText(this@MainActivity, "Could not extract media from this link", Toast.LENGTH_SHORT).show()
                 }
+            } catch (e: Exception) {
+                logError("Unhandled error in share handling", e)
+                Toast.makeText(this@MainActivity, "Unexpected error: ${e.message}", Toast.LENGTH_LONG).show()
             }
         }
     }
 
     private suspend fun resolveDownloadUrl(sharedText: String): String? {
-        if (sharedText.contains("instagram.com")) {
-            return InstagramExtractor.extractMediaUrl(sharedText)
+        return try {
+            when {
+                sharedText.contains("instagram.com") -> InstagramExtractor.extractMediaUrl(sharedText)
+                sharedText.contains("tiktok.com") || sharedText.contains("vm.tiktok") -> null
+                sharedText.contains("twitter.com") || sharedText.contains("x.com") -> null
+                sharedText.contains("facebook.com") || sharedText.contains("fb.watch") -> null
+                sharedText.startsWith("http") -> sharedText
+                else -> null
+            }
+        } catch (e: Exception) {
+            logError("Extractor failed for: $sharedText", e)
+            null
         }
-        // Diğer platformlar için yer tutucular
-        if (sharedText.contains("tiktok.com") || sharedText.contains("vm.tiktok")) {
-            return null
-        }
-        if (sharedText.contains("twitter.com") || sharedText.contains("x.com")) {
-            return null
-        }
-        if (sharedText.contains("facebook.com") || sharedText.contains("fb.watch")) {
-            return null
-        }
-        return if (sharedText.startsWith("http")) sharedText else null
+    }
+
+    private fun logError(message: String, throwable: Throwable) {
+        try {
+            val sw = StringWriter()
+            throwable.printStackTrace(PrintWriter(sw))
+            val log = "${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())} - $message\n${sw}\n\n"
+            val dir = File(Environment.getExternalStorageDirectory(), "MediaGrab")
+            if (!dir.exists()) dir.mkdirs()
+            File(dir, "error_log.txt").appendText(log)
+        } catch (_: Exception) { }
     }
 
     private fun isAccessibilityEnabled(): Boolean {
