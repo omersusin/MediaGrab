@@ -7,9 +7,7 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import media.grab.core.extractor.InstagramExtractor
 import media.grab.feature.dashboard.LogStore
 import media.grab.os.service.DownloadService
@@ -73,19 +71,16 @@ class ShareTrampolineActivity : ComponentActivity() {
         }
     }
 
-    private suspend fun resolveDownloadUrl(sharedText: String): String? = withContext(Dispatchers.IO) {
-        // 1) Native extractor (Instagram)
+    private suspend fun resolveDownloadUrl(sharedText: String): String? {
         if (sharedText.contains("instagram.com")) {
-            val result = InstagramExtractor.extractMediaUrl(sharedText)
-            if (result != null) return@withContext result
-            LogStore.add("→ Instagram native failed, trying yt-dlp fallback...")
+            LogStore.add("→ Trying Instagram extractor...")
+            return InstagramExtractor.extractMediaUrl(sharedText)
         }
-        // 2) yt-dlp fallback (any URL)
-        return@withContext try {
-            YtDlpFallback.resolve(sharedText)
-        } catch (e: Exception) {
-            LogStore.add("✗ yt-dlp error: ${e.message}")
-            null
+        // Diğer platformlar için yer tutucu
+        if (sharedText.startsWith("http")) {
+            LogStore.add("→ Using direct URL...")
+            return sharedText
         }
+        return null
     }
 }

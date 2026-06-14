@@ -1,5 +1,6 @@
 package media.grab.core.extractor
 
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.FormBody
@@ -9,6 +10,7 @@ import org.json.JSONObject
 
 object InstagramExtractor {
 
+    private const val TAG = "MediaGrab_IG"
     private val client = OkHttpClient.Builder()
         .followRedirects(true)
         .followSslRedirects(true)
@@ -16,14 +18,27 @@ object InstagramExtractor {
 
     suspend fun extractMediaUrl(postUrl: String): String? = withContext(Dispatchers.IO) {
         try {
-            // If it's a /share/ link, follow redirects to get the real URL first
+            // /share/ linkini çöz
             val resolvedUrl = if (postUrl.contains("/share/")) {
-                resolveShareUrl(postUrl) ?: return@withContext null
+                Log.d(TAG, "→ Resolving /share/ link: $postUrl")
+                resolveShareUrl(postUrl) ?: run {
+                    Log.e(TAG, "✗ Failed to resolve /share/ link")
+                    return@withContext null
+                }
             } else {
                 postUrl
             }
+            Log.d(TAG, "✓ Resolved URL: $resolvedUrl")
 
-            val shortcode = extractShortcode(resolvedUrl) ?: return@withContext null
+            // Kısa kodu ayıkla
+            val shortcode = extractShortcode(resolvedUrl)
+            if (shortcode == null) {
+                Log.e(TAG, "✗ Could not extract shortcode from: $resolvedUrl")
+                return@withContext null
+            }
+            Log.d(TAG, "✓ Shortcode: $shortcode")
+
+            // GraphQL isteği yap
             val docId = "10015901848480474"
             val variables = """{"shortcode":"$shortcode"}"""
             val requestBody = FormBody.Builder()
@@ -37,27 +52,55 @@ object InstagramExtractor {
                 .addHeader("X-IG-App-ID", "936619743392459")
                 .build()
 
+            Log.d(TAG, "→ Sending GraphQL request...")
             val response = client.newCall(request).execute()
-            val json = JSONObject(response.body?.string() ?: return@withContext null)
+            val bodyString = response.body?.string() ?: run {
+                Log.e(TAG, "✗ Empty response body")
+                return@withContext null
+            }
+            Log.d(TAG, "✓ Response code: ${response.code}, body length: ${bodyString.length}")
+
+            if (!response.isSuccessful) {
+                Log.e(TAG, "✗ HTTP ${response.code}: ${bodyString.take(300)}")
+                return@withContext null
+            }
+
+            // JSON ayrıştır
+            val json = JSONObject(bodyString)
             val mediaData = json.getJSONObject("data").getJSONObject("xdt_shortcode_media")
 
             // Video
             val videoUrl = mediaData.optString("video_url", null)
-            if (!videoUrl.isNullOrEmpty()) return@withContext videoUrl
+            if (!videoUrl.isNullOrEmpty()) {
+                Log.d(TAG, "✓ Found video URL")
+                return@withContext videoUrl
+            }
 
             // Carousel
             val carousel = mediaData.optJSONArray("edge_sidecar_to_children")
             if (carousel != null && carousel.length() > 0) {
                 val firstNode = carousel.getJSONObject(0).getJSONObject("node")
                 val carouselVideo = firstNode.optString("video_url", null)
-                if (!carouselVideo.isNullOrEmpty()) return@withContext carouselVideo
-                return@withContext firstNode.optString("display_url", null)
+                if (!carouselVideo.isNullOrEmpty()) {
+                    Log.d(TAG, "✓ Found carousel video URL")
+                    return@withContext carouselVideo
+                }
+                val displayUrl = firstNode.optString("display_url", null)
+                Log.d(TAG, "✓ Found carousel display URL")
+                return@withContext displayUrl
             }
 
-            // Image
-            return@withContext mediaData.optString("display_url", null)
+            // Görsel
+            val displayUrl = mediaData.optString("display_url", null)
+            if (!displayUrl.isNullOrEmpty()) {
+                Log.d(TAG, "✓ Found display URL")
+                return@withContext displayUrl
+            }
+
+            Log.e(TAG, "✗ No media URL found in response")
+            return@withContext null
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(TAG, "✗ Exception: ${e.message}", e)
             return@withContext null
         }
     }
@@ -77,7 +120,6 @@ object InstagramExtractor {
     }
 
     private fun extractShortcode(url: String): String? {
-        // Supports: /p/, /reel/, /reels/, /tv/, /stories/
         val regex = Regex(
             "(?:https?://)?(?:www\\.)?instagram\\.com/" +
             "(?:stories/[a-zA-Z0-9._-]+/|p/|reel/|reels/|tv/|share/)" +
