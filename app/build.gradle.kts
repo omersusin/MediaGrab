@@ -46,8 +46,10 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("androidx.datastore:datastore-preferences:1.1.1")
-    implementation("io.github.junkfood02.youtubedl-android:library:0.18.1")
-    implementation("io.github.junkfood02.youtubedl-android:ffmpeg:0.18.1")
+    
+    // yt-dlp fallback
+    implementation("io.github.farimarwat:youtubedl-boom:1.0.23")
+    implementation("io.github.farimarwat:youtubedl-boom-commons:1.2")
 
     implementation(project(":core:network"))
     implementation(project(":core:extractor"))

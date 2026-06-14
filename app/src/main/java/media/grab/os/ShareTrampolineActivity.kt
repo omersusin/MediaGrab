@@ -7,12 +7,12 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import media.grab.core.extractor.InstagramExtractor
+import media.grab.feature.dashboard.LogStore
 import media.grab.os.service.DownloadService
-import java.io.File
-import java.io.PrintWriter
-import java.io.StringWriter
 
 class ShareTrampolineActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -38,7 +38,7 @@ class ShareTrampolineActivity : ComponentActivity() {
         }
 
         val progressDialog = ProgressDialog(this).apply {
-            setMessage("Extracting media link...")
+            setMessage("Resolving media...")
             setCancelable(false)
             show()
         }
@@ -48,6 +48,7 @@ class ShareTrampolineActivity : ComponentActivity() {
                 val downloadUrl = resolveDownloadUrl(sharedText)
                 progressDialog.dismiss()
                 if (downloadUrl != null) {
+                    LogStore.add("✓ Resolved: $downloadUrl")
                     val serviceIntent = Intent(this@ShareTrampolineActivity, DownloadService::class.java).apply {
                         action = DownloadService.ACTION_DOWNLOAD
                         putExtra(DownloadService.EXTRA_URL, downloadUrl)
@@ -59,40 +60,32 @@ class ShareTrampolineActivity : ComponentActivity() {
                     }
                     Toast.makeText(this@ShareTrampolineActivity, "Download started", Toast.LENGTH_SHORT).show()
                 } else {
-                    Toast.makeText(this@ShareTrampolineActivity, "Could not extract media from this link", Toast.LENGTH_LONG).show()
-                    logError("Extraction failed for: $sharedText", null)
+                    LogStore.add("✗ Failed to resolve: $sharedText")
+                    Toast.makeText(this@ShareTrampolineActivity, "Could not extract media", Toast.LENGTH_LONG).show()
                 }
             } catch (e: Exception) {
                 progressDialog.dismiss()
+                LogStore.add("✗ Crash: ${e.message}")
                 Toast.makeText(this@ShareTrampolineActivity, "Error: ${e.message}", Toast.LENGTH_LONG).show()
-                logError("Trampoline crash", e)
             } finally {
                 finish()
             }
         }
     }
 
-    private suspend fun resolveDownloadUrl(sharedText: String): String? {
-        return when {
-            sharedText.contains("instagram.com") -> InstagramExtractor.extractMediaUrl(sharedText)
-            sharedText.contains("tiktok.com") || sharedText.contains("vm.tiktok") -> null
-            sharedText.contains("twitter.com") || sharedText.contains("x.com") -> null
-            sharedText.contains("facebook.com") || sharedText.contains("fb.watch") -> null
-            sharedText.startsWith("http") -> sharedText
-            else -> null
+    private suspend fun resolveDownloadUrl(sharedText: String): String? = withContext(Dispatchers.IO) {
+        // 1) Native extractor (Instagram)
+        if (sharedText.contains("instagram.com")) {
+            val result = InstagramExtractor.extractMediaUrl(sharedText)
+            if (result != null) return@withContext result
+            LogStore.add("→ Instagram native failed, trying yt-dlp fallback...")
         }
-    }
-
-    private fun logError(message: String, throwable: Throwable?) {
-        try {
-            val sw = StringWriter()
-            if (throwable != null) {
-                throwable.printStackTrace(PrintWriter(sw))
-            }
-            val log = "$message\n${sw}\n\n"
-            val dir = File(getExternalFilesDir(null), "logs")
-            if (!dir.exists()) dir.mkdirs()
-            File(dir, "error_log.txt").appendText(log)
-        } catch (_: Exception) { }
+        // 2) yt-dlp fallback (any URL)
+        return@withContext try {
+            YtDlpFallback.resolve(sharedText)
+        } catch (e: Exception) {
+            LogStore.add("✗ yt-dlp error: ${e.message}")
+            null
+        }
     }
 }
