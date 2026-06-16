@@ -30,7 +30,14 @@ jobs:
           chmod +x gradlew || true
           if [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
             echo "gradle-wrapper.jar missing, generating wrapper..."
-            gradle wrapper --gradle-version 8.10.2 --distribution-type bin
+            # Use setup-gradle's gradle if available, fallback to ./gradlew
+            if command -v gradle &> /dev/null; then
+              gradle wrapper --gradle-version 8.10.2 --distribution-type bin
+            else
+              echo "ERROR: gradle not found on PATH and wrapper jar is missing"
+              echo "Please commit gradle/wrapper/gradle-wrapper.jar to the repository"
+              exit 1
+            fi
           fi
           chmod +x gradlew
           echo "--- Wrapper files ---"
