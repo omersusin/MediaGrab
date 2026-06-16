@@ -29,22 +29,17 @@ jobs:
 
       - name: Ensure Gradle Wrapper (jar + scripts)
         run: |
-          chmod +x gradlew || true
-          if [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
-            echo "gradle-wrapper.jar missing, generating wrapper..."
-            # Use setup-gradle's gradle if available, fallback to ./gradlew
-            if command -v gradle &> /dev/null; then
-              gradle wrapper --gradle-version 8.10.2 --distribution-type bin
-            else
-              echo "ERROR: gradle not found on PATH and wrapper jar is missing"
-              echo "Please commit gradle/wrapper/gradle-wrapper.jar to the repository"
-              exit 1
-            fi
-          fi
+          echo "Generating wrapper via system Gradle in isolated project..."
+          mkdir -p /tmp/wgen/gradle/wrapper
+          echo 'rootProject.name = "wgen"' > /tmp/wgen/settings.gradle.kts
+          touch /tmp/wgen/build.gradle.kts
+          gradle wrapper --gradle-version 8.10.2 --distribution-type bin --project-dir /tmp/wgen
+          cp /tmp/wgen/gradlew ./gradlew
+          cp /tmp/wgen/gradlew.bat ./gradlew.bat
+          cp /tmp/wgen/gradle/wrapper/gradle-wrapper.jar gradle/wrapper/gradle-wrapper.jar
           chmod +x gradlew
           echo "--- Wrapper files ---"
-          ls -la gradlew gradlew.bat gradle/wrapper/ || true
-
+          ls -la gradlew gradlew.bat gradle/wrapper/
       - name: Build Debug APK
         run: ./gradlew :app:assembleDebug --no-daemon
 
