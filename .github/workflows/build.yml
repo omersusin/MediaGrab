@@ -24,22 +24,21 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
-        with:
-          cache-provider: basic
 
-      - name: Grant execute permission
-        run: chmod +x gradlew
+      - name: Generate Gradle Wrapper (if missing)
+        run: |
+          if [ ! -f gradlew ]; then
+            echo "gradlew missing, generating..."
+            gradle wrapper --gradle-version 8.10.2 --distribution-type bin
+          fi
+          chmod +x gradlew
+          ls -la gradlew gradle/wrapper/
 
       - name: Build Debug APK
         run: ./gradlew :app:assembleDebug --no-daemon
 
-      - name: Build Release APK
+      - name: Build Release APK (unsigned, signing happens next step)
         run: ./gradlew :app:assembleRelease --no-daemon
-        env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
@@ -47,7 +46,7 @@ jobs:
           name: MediaGrab-Debug
           path: app/build/outputs/apk/debug/app-debug.apk
 
-      - name: Sign & Upload Release APK
+      - name: Sign Release APK
         uses: r0adkll/sign-android-release@v1
         id: sign_app
         with:
@@ -60,6 +59,7 @@ jobs:
           BUILD_TOOLS_VERSION: "35.0.0"
 
       - name: Upload Signed Release APK
+        if: steps.sign_app.outputs.signedReleaseFile != ''
         uses: actions/upload-artifact@v4
         with:
           name: MediaGrab-Release-Signed
