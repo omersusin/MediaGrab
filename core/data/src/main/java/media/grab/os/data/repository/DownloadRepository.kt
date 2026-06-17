@@ -3,8 +3,6 @@ package media.grab.os.data.repository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import javax.inject.Inject
-import javax.inject.Singleton
 
 data class DownloadItem(
     val id: String,
@@ -14,8 +12,7 @@ data class DownloadItem(
     val timestamp: Long = System.currentTimeMillis()
 )
 
-@Singleton
-class DownloadRepository @Inject constructor() {
+class DownloadRepository {
     private val _downloads = MutableStateFlow<List<DownloadItem>>(emptyList())
     val downloads: StateFlow<List<DownloadItem>> = _downloads.asStateFlow()
 

@@ -8,23 +8,21 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import dagger.hilt.android.AndroidEntryPoint
 import media.grab.os.ui.navigation.MediaGrabNavHost
 import media.grab.os.ui.theme.MediaGrabTheme
 
-@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            MediaGrabApp()
+            AppRoot()
         }
     }
 }
 
 @Composable
-private fun MediaGrabApp() {
+private fun AppRoot() {
     MediaGrabTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
             MediaGrabNavHost()

@@ -33,8 +33,4 @@ dependencies {
     api(project(":core:common"))
     api(project(":core:extractor"))
     implementation(project(":core:designsystem"))
-    implementation(libs.shizuku.api)
-    implementation(libs.shizuku.provider)
-    implementation(libs.libsu.core)
-    implementation(libs.libsu.service)
 }
