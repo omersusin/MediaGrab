@@ -4,7 +4,7 @@ import java.util.regex.Pattern
 
 object Utils {
     private val URL_PATTERN: Pattern = Pattern.compile(
-        "https?://[\w\-._~:/?#\[\]@!$&'()*+,;=%]+"
+        """https?://[\w\-._~:/?#\[\]@!$&'()*+,;=%]+"""
     )
 
     fun extractUrls(text: String): List<String> {
