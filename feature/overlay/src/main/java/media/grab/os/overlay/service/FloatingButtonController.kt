@@ -10,7 +10,6 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import media.grab.os.data.model.Platform
 import media.grab.os.overlay.overlay.OverlayLifecycleOwner
 import media.grab.os.overlay.ui.FloatingButton
-import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton

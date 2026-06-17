@@ -3,7 +3,6 @@ package media.grab.os.overlay.detection
 import android.view.accessibility.AccessibilityNodeInfo
 import media.grab.os.data.model.Platform
 import media.grab.os.overlay.service.FloatingButtonController
-import javax.inject.Inject
 import javax.inject.Singleton
 
 data class DetectedPost(val platform: Platform, val bounds: android.graphics.Rect, val viewId: String?)

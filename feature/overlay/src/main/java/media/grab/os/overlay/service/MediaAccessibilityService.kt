@@ -5,13 +5,10 @@ import android.content.Intent
 import android.graphics.Rect
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
-import dagger.hilt.android.AndroidEntryPoint
 import media.grab.os.common.logging.Logger
 import media.grab.os.data.model.Platform
 import media.grab.os.overlay.detection.PostDetector
-import javax.inject.Inject
 
-@AndroidEntryPoint
 class MediaAccessibilityService : AccessibilityService() {
     @Inject lateinit var postDetector: PostDetector
 

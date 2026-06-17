@@ -1,9 +1,5 @@
 package media.grab.os.overlay.di
 
-import dagger.Module
-import dagger.hilt.InstallIn
-import dagger.hilt.components.SingletonComponent
-
-@Module
-@InstallIn(SingletonComponent::class)
+// Hilt module disabled - Hilt plugin not applied to feature:overlay
+// Re-enable when overlay module uses Hilt for injection.
 object OverlayModule

@@ -3,7 +3,6 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
-    alias(libs.plugins.hilt)
 }
 
 android {
@@ -38,6 +37,4 @@ dependencies {
     implementation(libs.shizuku.provider)
     implementation(libs.libsu.core)
     implementation(libs.libsu.service)
-    implementation(libs.hilt.android)
-    ksp(libs.hilt.compiler)
 }
