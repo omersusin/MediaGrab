@@ -92,8 +92,6 @@ dependencies {
 
     // Hilt
     implementation(libs.hilt.navigation.compose)
-    implementation(libs.androidx.hilt.work)
-    ksp(libs.androidx.hilt.compiler)
 
     // Coroutines + Serialization
     implementation(libs.kotlinx.coroutines.android)
@@ -105,7 +103,6 @@ dependencies {
     // Room
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
-    ksp(libs.androidx.room.compiler)
 
     // Network
     implementation(libs.okhttp)
