@@ -1,33 +1,17 @@
-package media.grab.os.ui.home.components
+package media.grab.os.ui.home/components
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Key
-import androidx.compose.material3.Icon
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
-import media.grab.os.R
-import media.grab.os.ds.components.MGCard
+import androidx.navigation.NavHostController
 
 @Composable
-fun AccessStatusCard() {
-    MGCard {
-        Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Icon(Icons.Rounded.Key, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-            Column(modifier = Modifier.weight(1f)) {
-                Text(stringResource(R.string.home_card_access), style = MaterialTheme.typography.titleMedium)
-                Text(stringResource(R.string.access_a11y), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Text(stringResource(R.string.access_status_active), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-        }
+fun AccessStatusCardScreen(navController: NavHostController? = null) {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Text(text = "Access Status", style = MaterialTheme.typography.headlineSmall)
     }
 }
