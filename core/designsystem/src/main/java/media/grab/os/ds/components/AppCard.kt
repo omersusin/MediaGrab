@@ -8,13 +8,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun AppCard(
-    modifier: Modifier = Modifier,
-    content: @Composable () -> Unit
-) {
+fun AppCard(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     Card(
-        modifier = modifier.padding(8.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        modifier = modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         content()
     }

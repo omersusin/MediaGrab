@@ -10,11 +10,13 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun MGCard(
     modifier: Modifier = Modifier,
+    onClick: () -> Unit = {},
     content: @Composable () -> Unit
 ) {
     Card(
         modifier = modifier.padding(8.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        onClick = onClick
     ) {
         content()
     }

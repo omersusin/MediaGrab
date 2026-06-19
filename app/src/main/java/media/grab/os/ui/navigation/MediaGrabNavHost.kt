@@ -1,66 +1,84 @@
 package media.grab.os.ui.navigation
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.Icon
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import media.grab.os.ui.downloads.DownloadsScreen
+import media.grab.os.ui.home.HomeScreen
+import media.grab.os.ui.onboarding.OnboardingScreen
+import media.grab.os.ui.paste.PasteUrlScreen
+import media.grab.os.ui.settings.SettingsScreen
 
+object Routes {
+    const val ONBOARDING = "onboarding"
+    const val HOME = "home"
+    const val DOWNLOADS = "downloads"
+    const val PASTE = "paste"
+    const val SETTINGS = "settings"
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MediaGrabNavHost() {
-    var selected by remember { mutableStateOf(0) }
-    val screens = listOf("Home", "Downloads", "Settings")
-
-    Scaffold(
-        bottomBar = {
-            NavigationBar {
-                screens.forEachIndexed { index, label ->
-                    NavigationBarItem(
-                        selected = selected == index,
-                        onClick = { selected = index },
-                        icon = {
-                            Icon(
-                                imageVector = when (index) {
-                                    0 -> Icons.Filled.Home
-                                    1 -> Icons.Filled.Download
-                                    else -> Icons.Filled.Settings
-                                },
-                                contentDescription = label
-                            )
-                        },
-                        label = { Text(label) }
-                    )
+fun MediaGrabNavHost(navController: NavHostController = rememberNavController()) {
+    NavHost(navController = navController, startDestination = Routes.HOME) {
+        composable(Routes.ONBOARDING) { OnboardingScreen(navController) }
+        composable(Routes.HOME) {
+            Scaffold(
+                bottomBar = { BottomBar(navController) }
+            ) { padding ->
+                androidx.compose.foundation.layout.Box(modifier = Modifier.padding(padding)) {
+                    HomeScreen(navController)
                 }
             }
         }
-    ) { padding ->
-        Column(
-            modifier = Modifier.fillMaxSize().padding(padding),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    text = "MediaGrab — ${screens[selected]}",
-                    style = MaterialTheme.typography.headlineMedium
-                )
+        composable(Routes.DOWNLOADS) {
+            Scaffold(
+                bottomBar = { BottomBar(navController) }
+            ) { padding ->
+                androidx.compose.foundation.layout.Box(modifier = Modifier.padding(padding)) {
+                    DownloadsScreen(navController)
+                }
             }
         }
+        composable(Routes.PASTE) { PasteUrlScreen(navController) }
+        composable(Routes.SETTINGS) { SettingsScreen(navController) }
+    }
+}
+
+@Composable
+private fun BottomBar(navController: NavHostController) {
+    var selected by remember { mutableStateOf(0) }
+    NavigationBar {
+        NavigationBarItem(
+            selected = selected == 0,
+            onClick = { selected = 0; navController.navigate(Routes.HOME) },
+            icon = { Icon(Icons.Default.Home, null) },
+            label = { Text("Home") }
+        )
+        NavigationBarItem(
+            selected = selected == 1,
+            onClick = { selected = 1; navController.navigate(Routes.DOWNLOADS) },
+            icon = { Icon(Icons.Default.Download, null) },
+            label = { Text("Downloads") }
+        )
+        NavigationBarItem(
+            selected = selected == 2,
+            onClick = { selected = 2; navController.navigate(Routes.PASTE) },
+            icon = { Icon(Icons.Default.ContentPaste, null) },
+            label = { Text("Paste") }
+        )
+        NavigationBarItem(
+            selected = selected == 3,
+            onClick = { selected = 3; navController.navigate(Routes.SETTINGS) },
+            icon = { Icon(Icons.Default.Settings, null) },
+            label = { Text("Settings") }
+        )
     }
 }
