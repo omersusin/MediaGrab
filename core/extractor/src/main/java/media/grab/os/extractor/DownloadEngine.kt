@@ -26,7 +26,7 @@ object DownloadEngine {
         repository.addDownload(download)
         val notifId = download.id.hashCode()
 
-        try {
+        runCatching {
             NotificationHelper.showDownloading(context, notifId, mediaInfo.fileName, 0)
             val response = HttpClient.getAsync(mediaInfo.url)
             if (!response.isSuccessful) error("HTTP ${response.code}")
@@ -41,10 +41,9 @@ object DownloadEngine {
             repository.updateStatus(download.id, DownloadStatus.COMPLETED)
             NotificationHelper.showCompleted(context, notifId, mediaInfo.fileName)
             saved
-        } catch (e: Exception) {
+        }.onFailure { e ->
             repository.updateStatus(download.id, DownloadStatus.FAILED, e.message ?: "Unknown error")
             NotificationHelper.showFailed(context, notifId, mediaInfo.fileName, e.message ?: "Unknown")
-            throw e
         }
     }
 }
