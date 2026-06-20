@@ -21,6 +21,8 @@ compileOptions {
 }
 
 dependencies {
+    api(project(":core:data"))
+
     val composeBom = platform(libs.androidx.compose.bom)
     implementation(composeBom)
 
