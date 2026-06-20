@@ -14,26 +14,29 @@ class InstagramExtractor : Extractor {
 
     override suspend fun extract(url: String): Result<MediaInfo> = withContext(Dispatchers.IO) {
         runCatching {
-            // Try multiple endpoints and patterns
             val response = HttpClient.getAsync(url)
-            if (!response.isSuccessful) error("HTTP ${'$'}{response.code}")
+            if (!response.isSuccessful) error("HTTP ${response.code}")
             val html = response.body?.string().orEmpty()
-            if (html.isBlank()) error("Boş yanıt")
+            if (html.isBlank()) error("Bos yanit")
 
-            // Public posts have og:video or og:image
+            // og:video / og:image
             val ogVideo = Regex("""<meta[^>]+property=["']og:video["'][^>]+content=["']([^"']+)["']""")
                 .find(html)?.groupValues?.get(1)?.replace("&amp;", "&")
             val ogImage = Regex("""<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']""")
                 .find(html)?.groupValues?.get(1)?.replace("&amp;", "&")
 
-            // Try embedded JSON
-            val jsonVideo = Regex(""video_url":\s*"(https://[^"\\]+)"")
-                .find(html)?.groupValues?.get(1)?.replace("\/", "/")?.replace("&amp;", "&")
-            val jsonImage = Regex(""display_url":\s*"(https://[^"\\]+)"")
-                .find(html)?.groupValues?.get(1)?.replace("\/", "/")?.replace("&amp;", "&")
+            // JSON pattern (display_url, video_url) - escaped JSON icinde
+            val jsonVideo = Regex(""""video_url":\s*"([^"\\]+(\\.[^"\\]*)*)"""")
+                .find(html)?.groupValues?.get(1)
+                ?.replace("\\/", "/")
+                ?.replace("&amp;", "&")
+            val jsonImage = Regex(""""display_url":\s*"([^"\\]+(\\.[^"\\]*)*)"""")
+                .find(html)?.groupValues?.get(1)
+                ?.replace("\\/", "/")
+                ?.replace("&amp;", "&")
 
             val mediaUrl = ogVideo ?: jsonVideo ?: ogImage ?: jsonImage
-                ?: error("Instagram medyası bulunamadı. Giriş gerektiren içerik olabilir.")
+                ?: error("Instagram medyasi bulunamadi. Giris gerektiren icerik olabilir.")
 
             val type = if (ogVideo != null || jsonVideo != null) MediaType.VIDEO else MediaType.IMAGE
             val title = Regex("""<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']""")
@@ -44,7 +47,7 @@ class InstagramExtractor : Extractor {
             MediaInfo(
                 url = mediaUrl,
                 title = safeTitle,
-                fileName = "ig_${'$'}safeTitle.${'$'}ext",
+                fileName = "ig_${safeTitle}.${ext}",
                 mediaType = type,
                 platform = Platform.INSTAGRAM
             )

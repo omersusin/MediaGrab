@@ -15,55 +15,57 @@ class TwitterExtractor : Extractor {
 
     override suspend fun extract(url: String): Result<MediaInfo> = withContext(Dispatchers.IO) {
         runCatching {
-            // Try syndication API first
-            val tweetId = Regex("(?:status|statuses)/(\d+)").find(url)?.groupValues?.get(1)
-                ?: Regex("/(\d{10,})").find(url)?.groupValues?.get(1)
-                ?: error("Tweet ID bulunamadı")
+            val tweetId = Regex("(?:status|statuses)/(\\d+)").find(url)?.groupValues?.get(1)
+                ?: Regex("/(\\d{10,})").find(url)?.groupValues?.get(1)
+                ?: error("Tweet ID bulunamadi")
 
-            val synUrl = "https://cdn.syndication.twimg.com/tweet-result?id=${'$'}tweetId&token=0"
+            // 1) Syndication API dene
+            val synUrl = "https://cdn.syndication.twimg.com/tweet-result?id=${tweetId}&token=0"
             val synResp = HttpClient.getAsync(synUrl)
-
             if (synResp.isSuccessful) {
                 val body = synResp.body?.string().orEmpty()
-                if (body.isNotBlank()) {
-                    // Parse JSON for video URL
-                    val videoMatch = Regex(""variants":\[\{[^\]]*"url":"([^"]+\.mp4[^"]*)"")
-                        .find(body)?.groupValues?.get(1)?.replace("\/", "/")
-                    val imageMatch = Regex(""media_url":"(https://pbs\.twimg\.com[^"]+)"")
-                        .find(body)?.groupValues?.get(1)?.replace("\/", "/")
+                if (body.isNotBlank() && body.contains("\"text\"")) {
+                    // video URL: "variants":[{... "url":"...mp4..."}]
+                    val videoMatch = Regex(""""variants":\[\{[^]]*"url":"([^"]+\.mp4[^"]*)"""")
+                        .find(body)?.groupValues?.get(1)?.replace("\\/", "/")
+                    // image URL: "media_url":"https://pbs.twimg.com/..."
+                    val imageMatch = Regex(""""media_url":"(https://pbs\.twimg\.com[^"]+)"""")
+                        .find(body)?.groupValues?.get(1)?.replace("\\/", "/")
 
-                    val mediaUrl = videoMatch ?: imageMatch ?: error("Tweet medyası bulunamadı")
-                    val title = Regex(""text":"([^"]+)"").find(body)?.groupValues?.get(1) ?: "Tweet"
+                    val mediaUrl = videoMatch ?: imageMatch ?: error("Tweet medyasi bulunamadi")
+                    val title = Regex(""""text":"([^"]+)"""").find(body)?.groupValues?.get(1) ?: "Tweet"
                     val safeTitle = title.take(60).replace(Regex("[^\\w\\s.-]"), "_")
                     val type = if (videoMatch != null) MediaType.VIDEO else MediaType.IMAGE
                     val ext = if (videoMatch != null) "mp4" else "jpg"
 
-                    return@withContext Result.success(MediaInfo(
-                        url = mediaUrl,
-                        title = safeTitle,
-                        fileName = "x_${'$'}safeTitle.${'$'}ext",
-                        mediaType = type,
-                        platform = Platform.TWITTER
-                    ))
+                    return@withContext Result.success(
+                        MediaInfo(
+                            url = mediaUrl,
+                            title = safeTitle,
+                            fileName = "x_${safeTitle}.${ext}",
+                            mediaType = type,
+                            platform = Platform.TWITTER
+                        )
+                    )
                 }
             }
 
-            // Fallback: parse HTML
+            // 2) HTML fallback
             val response = HttpClient.getAsync(url)
             val html = response.body?.string().orEmpty()
             val ogVideo = Regex("""<meta[^>]+property=["']og:video["'][^>]+content=["']([^"']+)["']""")
                 .find(html)?.groupValues?.get(1)
             val ogImage = Regex("""<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']""")
                 .find(html)?.groupValues?.get(1)
-            val mediaUrl = ogVideo ?: ogImage ?: error("Tweet medyası bulunamadı")
+            val mediaUrl = ogVideo ?: ogImage ?: error("Tweet medyasi bulunamadi")
             val type = if (ogVideo != null) MediaType.VIDEO else MediaType.IMAGE
-            val safeTitle = "tweet_${'$'}tweetId"
+            val safeTitle = "tweet_${tweetId}"
             val ext = if (ogVideo != null) "mp4" else "jpg"
 
             MediaInfo(
                 url = mediaUrl,
                 title = safeTitle,
-                fileName = "x_${'$'}safeTitle.${'$'}ext",
+                fileName = "x_${safeTitle}.${ext}",
                 mediaType = type,
                 platform = Platform.TWITTER
             )

@@ -29,7 +29,7 @@ object DownloadEngine {
         try {
             NotificationHelper.showDownloading(context, notifId, mediaInfo.fileName, 0)
             val response = HttpClient.getAsync(mediaInfo.url)
-            if (!response.isSuccessful) error("HTTP ${'$'}{response.code}")
+            if (!response.isSuccessful) error("HTTP ${response.code}")
 
             val bytes = response.body?.bytes() ?: error("Empty body")
             val mime = response.body?.contentType()?.toString()?.split(";")?.firstOrNull()?.trim()
