@@ -54,4 +54,3 @@ Requirements: JDK 17, Android SDK 35.
 GPL-3.0 — see [LICENSE](LICENSE).
 
 > Personal use. Respect the terms of service and copyright of the platforms you download from.
-// rebuild 1781965707
