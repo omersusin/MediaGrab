@@ -17,7 +17,12 @@ class MediaGrabApp : Application() {
         NotificationHelper.ensureChannel(this)
         // Warm up yt-dlp off the main thread (first run unpacks python/ffmpeg).
         thread(start = true, isDaemon = true) {
-            runCatching { YtDlpEngine.ensureInit(this) }
+            runCatching {
+                if (YtDlpEngine.ensureInit(this)) {
+                    // Refresh extractors so new site changes keep working.
+                    runCatching { YtDlpEngine.update(this) }
+                }
+            }
         }
     }
 }

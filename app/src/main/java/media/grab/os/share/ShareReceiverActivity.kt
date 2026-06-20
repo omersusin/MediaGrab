@@ -2,8 +2,10 @@ package media.grab.os.share
 
 import android.content.Intent
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -21,11 +23,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import media.grab.os.data.model.DownloadFormat
 import media.grab.os.data.model.Platform
 import media.grab.os.download.DownloadService
 import media.grab.os.ui.theme.MediaGrabTheme
-import android.widget.Toast
-import androidx.compose.foundation.isSystemInDarkTheme
 
 class ShareReceiverActivity : ComponentActivity() {
 
@@ -34,15 +35,14 @@ class ShareReceiverActivity : ComponentActivity() {
         val shared = extractUrl(intent)
         if (shared == null) {
             Toast.makeText(this, "No link found in shared text.", Toast.LENGTH_SHORT).show()
-            finish()
-            return
+            finish(); return
         }
         setContent {
             MediaGrabTheme(darkTheme = isSystemInDarkTheme()) {
                 ConfirmDialog(
                     url = shared,
-                    onDownload = { audioOnly ->
-                        DownloadService.start(this, shared, audioOnly)
+                    onDownload = { format ->
+                        DownloadService.start(this, shared, format)
                         Toast.makeText(this, "MediaGrab: download queued", Toast.LENGTH_SHORT).show()
                         finish()
                     },
@@ -60,23 +60,21 @@ class ShareReceiverActivity : ComponentActivity() {
 }
 
 @Composable
-private fun ConfirmDialog(url: String, onDownload: (Boolean) -> Unit, onCancel: () -> Unit) {
+private fun ConfirmDialog(url: String, onDownload: (DownloadFormat) -> Unit, onCancel: () -> Unit) {
     val platform = Platform.fromUrl(url)
     AlertDialog(
         onDismissRequest = onCancel,
         title = { Text("Download from ${platform.displayName}?") },
-        text = {
-            Text(url, maxLines = 3, overflow = TextOverflow.Ellipsis)
-        },
+        text = { Text(url, maxLines = 3, overflow = TextOverflow.Ellipsis) },
         confirmButton = {
-            Button(onClick = { onDownload(false) }) {
+            Button(onClick = { onDownload(DownloadFormat.BEST) }) {
                 Icon(Icons.Filled.Download, contentDescription = null)
                 Text("  Download")
             }
         },
         dismissButton = {
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                OutlinedButton(onClick = { onDownload(true) }, modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+                OutlinedButton(onClick = { onDownload(DownloadFormat.AUDIO_M4A) }, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Filled.MusicNote, contentDescription = null)
                     Text("  Audio only")
                 }

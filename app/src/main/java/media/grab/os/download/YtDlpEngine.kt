@@ -6,18 +6,22 @@ import com.yausername.aria2c.Aria2c
 import com.yausername.ffmpeg.FFmpeg
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
+import media.grab.os.data.model.DownloadFormat
 import java.io.File
 
 /**
- * Wraps yt-dlp (via youtubedl-android). Supports 1000+ sites, merges best video+audio
- * with ffmpeg, and downloads straight to a temp dir that we later move into MediaStore.
+ * Wraps yt-dlp (via youtubedl-android). Supports 1000+ sites and merges best video+audio
+ * with ffmpeg. The bundled yt-dlp is stale, so we self-update it from GitHub on first use.
  */
 object YtDlpEngine {
 
     private const val TAG = "YtDlpEngine"
 
     @Volatile private var initialized = false
+    @Volatile private var updated = false
     @Volatile var lastInitError: String? = null
+        private set
+    @Volatile var ytdlpVersion: String? = null
         private set
 
     fun ensureInit(context: Context): Boolean {
@@ -26,10 +30,11 @@ object YtDlpEngine {
             if (initialized) return true
             return try {
                 YoutubeDL.getInstance().init(context.applicationContext)
-                FFmpeg.getInstance().init(context.applicationContext)
-                Aria2c.getInstance().init(context.applicationContext)
+                runCatching { FFmpeg.getInstance().init(context.applicationContext) }
+                runCatching { Aria2c.getInstance().init(context.applicationContext) }
                 initialized = true
                 lastInitError = null
+                ytdlpVersion = runCatching { YoutubeDL.getInstance().version(context.applicationContext) }.getOrNull()
                 true
             } catch (t: Throwable) {
                 lastInitError = t.message
@@ -39,37 +44,65 @@ object YtDlpEngine {
         }
     }
 
+    /** Pull the latest yt-dlp extractors. Safe to call repeatedly; cheap if already current. */
+    fun update(context: Context, force: Boolean = false): String {
+        if (!ensureInit(context)) return "Engine not available: ${lastInitError ?: "init failed"}"
+        if (updated && !force) return "Already updated this session (yt-dlp ${ytdlpVersion ?: "?"})"
+        return try {
+            val status = YoutubeDL.getInstance()
+                .updateYoutubeDL(context.applicationContext, YoutubeDL.UpdateChannel.STABLE)
+            updated = true
+            ytdlpVersion = runCatching { YoutubeDL.getInstance().version(context.applicationContext) }.getOrNull()
+            when (status) {
+                YoutubeDL.UpdateStatus.DONE -> "Updated to yt-dlp ${ytdlpVersion ?: "latest"}"
+                YoutubeDL.UpdateStatus.ALREADY_UP_TO_DATE -> "Already up to date (yt-dlp ${ytdlpVersion ?: "?"})"
+                else -> "Update finished"
+            }
+        } catch (t: Throwable) {
+            Log.w(TAG, "yt-dlp update failed", t)
+            "Update failed: ${t.message}"
+        }
+    }
+
     data class YtResult(val file: File, val title: String)
 
-    /**
-     * Downloads [url] into a fresh subfolder of [parentDir].
-     * @param audioOnly extract bestaudio as m4a.
-     * @throws Exception on failure (caller falls back to the meta scraper).
-     */
+    private fun formatSelector(format: DownloadFormat): String = when (format) {
+        DownloadFormat.BEST -> "bv*+ba/b"
+        DownloadFormat.Q1080 -> "bv*[height<=1080]+ba/b[height<=1080]/b"
+        DownloadFormat.Q720 -> "bv*[height<=720]+ba/b[height<=720]/b"
+        DownloadFormat.Q480 -> "bv*[height<=480]+ba/b[height<=480]/b"
+        DownloadFormat.AUDIO_M4A, DownloadFormat.AUDIO_MP3 -> "bestaudio/best"
+    }
+
     fun download(
         context: Context,
         url: String,
         parentDir: File,
-        audioOnly: Boolean,
+        format: DownloadFormat,
         processId: String,
         onProgress: (Int) -> Unit
     ): YtResult {
         if (!ensureInit(context)) {
             throw IllegalStateException("yt-dlp not available: ${lastInitError ?: "init failed"}")
         }
-        val workDir = File(parentDir, "yt_$processId").apply { mkdirs() }
+        // Best effort: make sure extractors are fresh before the first real download.
+        if (!updated) runCatching { update(context) }
+
+        val workDir = File(parentDir, "yt_$processId").apply {
+            deleteRecursively(); mkdirs()
+        }
         val request = YoutubeDLRequest(url).apply {
-            addOption("-o", File(workDir, "%(title).100s.%(ext)s").absolutePath)
+            addOption("-o", File(workDir, "%(title).80s.%(ext)s").absolutePath)
             addOption("--no-playlist")
             addOption("--no-mtime")
             addOption("--restrict-filenames")
             addOption("--no-warnings")
-            if (audioOnly) {
+            addOption("--no-part")
+            addOption("-f", formatSelector(format))
+            if (format.isAudio) {
                 addOption("-x")
-                addOption("--audio-format", "m4a")
-                addOption("-f", "bestaudio/best")
+                addOption("--audio-format", if (format == DownloadFormat.AUDIO_MP3) "mp3" else "m4a")
             } else {
-                addOption("-f", "bv*+ba/b")
                 addOption("--merge-output-format", "mp4")
             }
         }
@@ -78,9 +111,10 @@ object YtDlpEngine {
             if (progress >= 0f) onProgress(progress.toInt().coerceIn(0, 100))
         }
 
+        // The merged video (or the extracted audio) is the largest file in the work dir.
         val produced = workDir.listFiles()
             ?.filter { it.isFile && it.length() > 0 }
-            ?.maxByOrNull { it.lastModified() }
+            ?.maxByOrNull { it.length() }
             ?: throw IllegalStateException("yt-dlp produced no file.")
 
         val title = produced.nameWithoutExtension.replace('_', ' ').trim()

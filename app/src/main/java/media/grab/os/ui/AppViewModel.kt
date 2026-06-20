@@ -24,15 +24,25 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val downloads = repo.downloads
     val settings = prefs.settings.stateIn(viewModelScope, SharingStarted.Eagerly, Settings())
 
-    fun download(url: String, audioOnly: Boolean = false) {
+    fun download(url: String, format: media.grab.os.data.model.DownloadFormat = media.grab.os.data.model.DownloadFormat.BEST) {
         val clean = url.trim()
         if (clean.isBlank()) return
-        DownloadService.start(getApplication(), clean, audioOnly)
+        DownloadService.start(getApplication(), clean, format)
     }
 
     fun retry(id: String) {
         val item = repo.get(id) ?: return
-        DownloadService.start(getApplication(), item.url, item.mediaType == media.grab.os.data.model.MediaType.AUDIO, retryId = id)
+        val fmt = if (item.mediaType == media.grab.os.data.model.MediaType.AUDIO)
+            media.grab.os.data.model.DownloadFormat.AUDIO_M4A
+        else media.grab.os.data.model.DownloadFormat.BEST
+        DownloadService.start(getApplication(), item.url, fmt, retryId = id)
+    }
+
+    fun updateEngine(onResult: (String) -> Unit) = viewModelScope.launch {
+        val msg = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            media.grab.os.download.YtDlpEngine.update(getApplication(), force = true)
+        }
+        onResult(msg)
     }
 
     fun delete(id: String) = repo.remove(id)

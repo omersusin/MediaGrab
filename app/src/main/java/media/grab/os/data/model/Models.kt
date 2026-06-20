@@ -6,6 +6,18 @@ enum class MediaType { IMAGE, VIDEO, AUDIO, UNKNOWN }
 
 enum class DownloadStatus { QUEUED, EXTRACTING, DOWNLOADING, COMPLETED, FAILED }
 
+/** User-selectable quality / container. */
+enum class DownloadFormat(val label: String) {
+    BEST("Best quality"),
+    Q1080("Up to 1080p"),
+    Q720("Up to 720p"),
+    Q480("Up to 480p"),
+    AUDIO_M4A("Audio · M4A"),
+    AUDIO_MP3("Audio · MP3");
+
+    val isAudio: Boolean get() = this == AUDIO_M4A || this == AUDIO_MP3
+}
+
 /**
  * Known platforms for nice labelling. The yt-dlp engine supports 1000+ sites, so any URL
  * not listed here still works through [GENERIC]; this enum only controls display + fallbacks.

@@ -12,6 +12,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import media.grab.os.MediaGrabApp
 import media.grab.os.data.model.Download
+import media.grab.os.data.model.DownloadFormat
 import media.grab.os.data.model.DownloadStatus
 import media.grab.os.data.model.MediaType
 import media.grab.os.data.model.Platform
@@ -19,15 +20,14 @@ import media.grab.os.data.repository.DownloadRepository
 import media.grab.os.extractor.ExtractorRegistry
 import media.grab.os.network.HttpClient
 import media.grab.os.notif.NotificationHelper
-import okhttp3.Request
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * Foreground service that performs downloads. Strategy:
- *  1) Try the yt-dlp engine (1000+ sites, real video/audio merging).
- *  2) On failure, fall back to the meta-scraper + direct OkHttp download (good for image posts).
+ * Foreground service that performs downloads.
+ *  1) yt-dlp engine (1000+ sites, real video/audio with the chosen quality).
+ *  2) Fallback to meta-scraper + OkHttp for pure image posts.
  */
 class DownloadService : Service() {
 
@@ -38,70 +38,62 @@ class DownloadService : Service() {
     override fun onCreate() {
         super.onCreate()
         repo = (application as MediaGrabApp).container.downloadRepository
-        updateForeground("Starting...", 0)
+        updateForeground("Starting…", 0)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val url = intent?.getStringExtra(EXTRA_URL)?.trim()
-        val audioOnly = intent?.getBooleanExtra(EXTRA_AUDIO_ONLY, false) ?: false
+        val formatName = intent?.getStringExtra(EXTRA_FORMAT) ?: DownloadFormat.BEST.name
         val retryId = intent?.getStringExtra(EXTRA_RETRY_ID)
+        val format = runCatching { DownloadFormat.valueOf(formatName) }.getOrDefault(DownloadFormat.BEST)
         if (url.isNullOrBlank()) {
-            stopIfIdle()
-            return START_NOT_STICKY
+            stopIfIdle(); return START_NOT_STICKY
         }
         active.incrementAndGet()
-        scope.launch { runDownload(url, audioOnly, retryId) }
+        scope.launch { runDownload(url, format, retryId) }
         return START_NOT_STICKY
     }
 
-    private fun runDownload(url: String, audioOnly: Boolean, retryId: String?) {
+    private fun runDownload(url: String, format: DownloadFormat, retryId: String?) {
         val platform = Platform.fromUrl(url)
         val id = retryId ?: UUID.randomUUID().toString()
         val notifId = id.hashCode() and 0xFFFF
+        val baseType = if (format.isAudio) MediaType.AUDIO else MediaType.VIDEO
 
         var item = repo.get(id)?.copy(
-            status = DownloadStatus.EXTRACTING, progress = 0, errorMessage = null
+            status = DownloadStatus.EXTRACTING, progress = 0, errorMessage = null, mediaType = baseType
         ) ?: Download(
             id = id, url = url, platform = platform,
-            status = DownloadStatus.EXTRACTING,
-            mediaType = if (audioOnly) MediaType.AUDIO else MediaType.UNKNOWN
+            status = DownloadStatus.EXTRACTING, mediaType = baseType
         )
         repo.upsert(item)
-        updateForeground(item.title.ifBlank { platform.displayName }, 0)
+        updateForeground(platform.displayName, 0)
 
-        // --- 1) yt-dlp engine ---
+        var ytError: String? = null
         val ytOk = runCatching {
             item = item.copy(status = DownloadStatus.DOWNLOADING)
             repo.upsert(item)
-            val res = YtDlpEngine.download(
-                context = this,
-                url = url,
-                parentDir = cacheDir,
-                audioOnly = audioOnly,
-                processId = id
-            ) { p ->
-                if (p % 2 == 0) {
-                    item = item.copy(progress = p)
-                    repo.upsert(item)
-                    updateForeground(item.title.ifBlank { platform.displayName }, p)
-                }
+            val res = YtDlpEngine.download(this, url, cacheDir, format, id) { p ->
+                item = item.copy(progress = p)
+                repo.upsert(item)
+                updateForeground(item.title.ifBlank { platform.displayName }, p)
             }
-            val type = if (audioOnly) MediaType.AUDIO else guessType(res.file.extension)
+            val type = if (format.isAudio) MediaType.AUDIO else guessType(res.file.extension)
             val savedUri = FileSaver.saveFile(this, res.file, res.title.ifBlank { defaultName(platform) }, type)
             res.file.parentFile?.deleteRecursively()
-            finishSuccess(item.copy(
-                title = res.title, mediaType = type,
-                fileName = res.file.name
-            ), savedUri, notifId)
+            finishSuccess(item.copy(title = res.title, mediaType = type, fileName = res.file.name), savedUri, notifId)
             true
         }.getOrElse {
+            ytError = it.message
             android.util.Log.w("DownloadService", "yt-dlp path failed: ${it.message}")
             false
         }
 
         if (!ytOk) {
-            // --- 2) meta-scraper + OkHttp fallback ---
-            runCatching {
+            if (format.isAudio) {
+                // Audio extraction needs yt-dlp; no meaningful image fallback.
+                finishFailure(item, "Audio extraction failed. ${ytError ?: ""}".trim(), notifId)
+            } else runCatching {
                 item = item.copy(status = DownloadStatus.EXTRACTING)
                 repo.upsert(item)
                 val media = ExtractorRegistry.extract(url).first()
@@ -113,37 +105,35 @@ class DownloadService : Service() {
                 )
                 repo.upsert(item)
                 val temp = downloadToTemp(media.downloadUrl, media.suggestedExtension ?: extOf(media.mediaType)) { p ->
-                    item = item.copy(progress = p)
-                    repo.upsert(item)
+                    item = item.copy(progress = p); repo.upsert(item)
                     updateForeground(item.title.ifBlank { platform.displayName }, p)
                 }
-                val saved = FileSaver.saveFile(this, temp,
-                    item.title.ifBlank { defaultName(platform) }, media.mediaType)
+                val saved = FileSaver.saveFile(this, temp, item.title.ifBlank { defaultName(platform) }, media.mediaType)
                 temp.delete()
                 finishSuccess(item.copy(fileName = temp.name), saved, notifId)
             }.onFailure { err ->
-                finishFailure(item, err.message ?: "Download failed.", notifId)
+                val msg = buildString {
+                    append(err.message ?: "Download failed.")
+                    if (ytError != null) append("  (engine: $ytError)")
+                }
+                finishFailure(item, msg, notifId)
             }
         }
         stopIfIdle()
     }
 
     private fun downloadToTemp(url: String, ext: String, onProgress: (Int) -> Unit): File {
-        val req: Request = HttpClient.request(url, mobile = true)
         val temp = File.createTempFile("dl_", ".$ext", cacheDir)
-        HttpClient.client.newCall(req).execute().use { resp ->
+        HttpClient.client.newCall(HttpClient.request(url, mobile = true)).execute().use { resp ->
             if (!resp.isSuccessful) throw IllegalStateException("HTTP ${resp.code}")
             val body = resp.body ?: throw IllegalStateException("Empty body")
             val total = body.contentLength()
             body.byteStream().use { input ->
                 temp.outputStream().use { output ->
                     val buf = ByteArray(64 * 1024)
-                    var read: Int
-                    var done = 0L
-                    var lastPct = -1
+                    var read: Int; var done = 0L; var lastPct = -1
                     while (input.read(buf).also { read = it } != -1) {
-                        output.write(buf, 0, read)
-                        done += read
+                        output.write(buf, 0, read); done += read
                         if (total > 0) {
                             val pct = ((done * 100) / total).toInt()
                             if (pct != lastPct) { lastPct = pct; onProgress(pct) }
@@ -168,8 +158,7 @@ class DownloadService : Service() {
     private fun finishFailure(base: Download, message: String, notifId: Int) {
         val failed = base.copy(status = DownloadStatus.FAILED, errorMessage = message)
         repo.upsert(failed)
-        NotificationHelper.notifyDone(this, notifId, failed.title.ifBlank { failed.platform.displayName },
-            false, message)
+        NotificationHelper.notifyDone(this, notifId, failed.title.ifBlank { failed.platform.displayName }, false, message)
     }
 
     private fun updateForeground(title: String, progress: Int) {
@@ -185,8 +174,7 @@ class DownloadService : Service() {
 
     private fun stopIfIdle() {
         if (active.decrementAndGet() <= 0) {
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
+            stopForeground(STOP_FOREGROUND_REMOVE); stopSelf()
         }
     }
 
@@ -208,20 +196,17 @@ class DownloadService : Service() {
 
     companion object {
         const val EXTRA_URL = "extra_url"
-        const val EXTRA_AUDIO_ONLY = "extra_audio_only"
+        const val EXTRA_FORMAT = "extra_format"
         const val EXTRA_RETRY_ID = "extra_retry_id"
 
-        fun start(context: Context, url: String, audioOnly: Boolean = false, retryId: String? = null) {
+        fun start(context: Context, url: String, format: DownloadFormat = DownloadFormat.BEST, retryId: String? = null) {
             val intent = Intent(context, DownloadService::class.java).apply {
                 putExtra(EXTRA_URL, url)
-                putExtra(EXTRA_AUDIO_ONLY, audioOnly)
+                putExtra(EXTRA_FORMAT, format.name)
                 if (retryId != null) putExtra(EXTRA_RETRY_ID, retryId)
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
-            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent)
+            else context.startService(intent)
         }
     }
 }

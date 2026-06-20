@@ -5,12 +5,14 @@ import android.content.Intent
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.Toast
-import media.grab.os.data.model.Platform
 import media.grab.os.download.DownloadService
+import media.grab.os.ui.MainActivity
 
 /**
- * Shows a one-tap floating download button while the user is in a supported social app.
- * On tap it scans the current screen for a URL and queues a download; otherwise opens the app.
+ * Shows a one-tap floating download bubble in supported apps.
+ * On tap: if a link is visible on screen (Twitter/Reddit/etc.) it downloads immediately.
+ * Otherwise (Instagram/TikTok hide URLs) it opens MediaGrab in "quick grab" mode, which reads
+ * the link you copied via the app's ••• -> "Copy link".
  */
 class MediaAccessibilityService : AccessibilityService() {
 
@@ -44,11 +46,12 @@ class MediaAccessibilityService : AccessibilityService() {
             DownloadService.start(this, url)
             Toast.makeText(this, "MediaGrab: downloading…", Toast.LENGTH_SHORT).show()
         } else {
-            Toast.makeText(this, "No link found — opening MediaGrab to paste.", Toast.LENGTH_SHORT).show()
-            val launch = packageManager.getLaunchIntentForPackage(packageName)?.apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            Toast.makeText(this, "Opening MediaGrab — grabbing the copied link…", Toast.LENGTH_SHORT).show()
+            val launch = Intent(this, MainActivity::class.java).apply {
+                action = MainActivity.ACTION_QUICK_GRAB
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             }
-            launch?.let { startActivity(it) }
+            runCatching { startActivity(launch) }
         }
     }
 
@@ -56,20 +59,15 @@ class MediaAccessibilityService : AccessibilityService() {
         if (node == null) return null
         val regex = Regex("https?://[^\\s\"']+")
         val texts = listOfNotNull(node.text?.toString(), node.contentDescription?.toString())
-        for (t in texts) {
-            regex.find(t)?.value?.let { return it.trimEnd('.', ',', ')') }
-        }
-        for (i in 0 until node.childCount) {
-            findUrl(node.getChild(i))?.let { return it }
-        }
+        for (t in texts) regex.find(t)?.value?.let { return it.trimEnd('.', ',', ')') }
+        for (i in 0 until node.childCount) findUrl(node.getChild(i))?.let { return it }
         return null
     }
 
     override fun onInterrupt() {}
 
     override fun onDestroy() {
-        controller?.hide()
-        controller = null
+        controller?.hide(); controller = null
         super.onDestroy()
     }
 }

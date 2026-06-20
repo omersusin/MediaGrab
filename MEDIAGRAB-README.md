@@ -57,17 +57,23 @@ With secrets set, the workflow also produces **MediaGrab-release-signed**.
 
 ## 4. Using the app
 
-- **Paste tab** → paste a link → Download (or "Audio only").
-- **Share** a link from any app → pick **MediaGrab** → Download.
-- **Floating button**: Settings → enable Accessibility + "Display over other apps",
-  then a download button appears while you browse Instagram / TikTok / X.
+- **Paste tab** → paste a link → pick **quality/format** (Best / 1080p / 720p / 480p /
+  Audio M4A / Audio MP3) → **Download**. Progress shows on the Downloads tab + a notification.
+- **Share** a link from any app → pick **MediaGrab** → Download (or Audio only).
+- **Floating bubble**: Settings → enable Accessibility + "Display over other apps".
+  A small bubble docks to the screen edge and goes semi-transparent. While browsing:
+  - On apps that show the link on screen (X/Twitter, Reddit…) tap the bubble → it downloads.
+  - On Instagram/TikTok (which hide the URL): tap the post's **••• → Copy link** first,
+    then tap the bubble → MediaGrab opens and downloads the copied link.
+- **Keep the engine fresh**: Settings → Download engine → **Update engine (yt-dlp)**.
+  The app also auto-updates yt-dlp on launch so site changes keep working.
 - Files land in **Download/MediaGrab/**.
 
 ## Notes
 
 - The first download initializes the yt-dlp/python runtime — it can take a few extra
   seconds once, then it's fast.
-- YouTube and most video sites download full video+audio (merged with ffmpeg).
+- YouTube and most video sites download full video+audio merged with ffmpeg at the chosen quality.
 - Some platforms change frequently; if one fails, the app automatically falls back to a
   metadata scraper, which still grabs thumbnails/images.
 

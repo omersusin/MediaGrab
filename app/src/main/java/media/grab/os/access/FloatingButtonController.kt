@@ -1,10 +1,14 @@
 package media.grab.os.access
 
+import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Color
+import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -12,68 +16,78 @@ import android.view.WindowManager
 import android.widget.TextView
 import kotlin.math.abs
 
-/** Draggable circular overlay button rendered from an AccessibilityService. */
+/**
+ * Small, unobtrusive draggable download bubble.
+ * Idle: docked to a screen edge at low opacity. Touch: full opacity. Release: snaps to the
+ * nearest edge and fades back. Tap (no drag) triggers [onTap].
+ */
 class FloatingButtonController(
     private val context: Context,
     private val onTap: () -> Unit
 ) {
-    private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-    private var button: View? = null
+    private val wm = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+    private val main = Handler(Looper.getMainLooper())
+    private var view: View? = null
+    private var params: WindowManager.LayoutParams? = null
+    private var fadeRunnable: Runnable? = null
+
+    private val sizePx get() = (48 * context.resources.displayMetrics.density).toInt()
+    private val idleAlpha = 0.35f
+    private val activeAlpha = 0.95f
 
     @SuppressLint("ClickableViewAccessibility")
     fun show() {
-        if (button != null) return
-        val size = (56 * context.resources.displayMetrics.density).toInt()
-        val view = TextView(context).apply {
+        if (view != null) return
+        val v = TextView(context).apply {
             text = "⬇"
-            textSize = 22f
+            textSize = 20f
             gravity = Gravity.CENTER
             setTextColor(Color.WHITE)
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
                 setColor(Color.parseColor("#3D5AFE"))
-                setStroke(2, Color.parseColor("#99FFFFFF"))
             }
-            alpha = 0.92f
+            alpha = idleAlpha
         }
 
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
-        else
-            @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE
+        else @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE
 
-        val params = WindowManager.LayoutParams(
-            size, size, type,
+        val lp = WindowManager.LayoutParams(
+            sizePx, sizePx, type,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
-            android.graphics.PixelFormat.TRANSLUCENT
+            PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = 24
-            y = 320
+            x = 0
+            y = (context.resources.displayMetrics.heightPixels * 0.4f).toInt()
         }
 
-        var initialX = 0; var initialY = 0
+        var startX = 0; var startY = 0
         var touchX = 0f; var touchY = 0f
         var moved = false
-        view.setOnTouchListener { _, event ->
-            when (event.action) {
+
+        v.setOnTouchListener { _, e ->
+            when (e.action) {
                 MotionEvent.ACTION_DOWN -> {
-                    initialX = params.x; initialY = params.y
-                    touchX = event.rawX; touchY = event.rawY; moved = false
+                    startX = lp.x; startY = lp.y
+                    touchX = e.rawX; touchY = e.rawY; moved = false
+                    cancelFade(); v.animate().alpha(activeAlpha).setDuration(120).start()
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    val dx = (event.rawX - touchX).toInt()
-                    val dy = (event.rawY - touchY).toInt()
-                    if (abs(dx) > 12 || abs(dy) > 12) moved = true
-                    params.x = initialX + dx
-                    params.y = initialY + dy
-                    runCatching { windowManager.updateViewLayout(view, params) }
+                    val dx = (e.rawX - touchX).toInt(); val dy = (e.rawY - touchY).toInt()
+                    if (abs(dx) > 16 || abs(dy) > 16) moved = true
+                    lp.x = startX + dx; lp.y = startY + dy
+                    runCatching { wm.updateViewLayout(v, lp) }
                     true
                 }
-                MotionEvent.ACTION_UP -> {
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     if (!moved) onTap()
+                    snapToEdge(v, lp)
+                    scheduleFade(v)
                     true
                 }
                 else -> false
@@ -81,13 +95,35 @@ class FloatingButtonController(
         }
 
         runCatching {
-            windowManager.addView(view, params)
-            button = view
+            wm.addView(v, lp); view = v; params = lp
+            scheduleFade(v)
         }
     }
 
+    private fun snapToEdge(v: View, lp: WindowManager.LayoutParams) {
+        val screenW = context.resources.displayMetrics.widthPixels
+        val target = if (lp.x + sizePx / 2 < screenW / 2) 0 else screenW - sizePx
+        ValueAnimator.ofInt(lp.x, target).apply {
+            duration = 180
+            addUpdateListener {
+                lp.x = it.animatedValue as Int
+                runCatching { wm.updateViewLayout(v, lp) }
+            }
+            start()
+        }
+    }
+
+    private fun scheduleFade(v: View) {
+        cancelFade()
+        fadeRunnable = Runnable { v.animate().alpha(idleAlpha).setDuration(400).start() }
+        main.postDelayed(fadeRunnable!!, 1500)
+    }
+
+    private fun cancelFade() { fadeRunnable?.let { main.removeCallbacks(it) } }
+
     fun hide() {
-        button?.let { runCatching { windowManager.removeView(it) } }
-        button = null
+        cancelFade()
+        view?.let { runCatching { wm.removeView(it) } }
+        view = null; params = null
     }
 }
