@@ -1,5 +1,8 @@
 package media.grab.os.ui.paste
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -8,18 +11,21 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
-import media.grab.os.data.model.Download
-import media.grab.os.data.model.MediaType
-import media.grab.os.data.model.Platform
-import media.grab.os.data.repository.DownloadRepository
+import kotlinx.coroutines.launch
+import media.grab.os.extractor.ExtractorRegistry
+import media.grab.os.extractor.DownloadEngine
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PasteUrlScreen(navController: NavHostController? = null) {
-    val repo = remember { DownloadRepository.getInstance() }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var url by remember { mutableStateOf("") }
+    var status by remember { mutableStateOf<String?>(null) }
+    var loading by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -44,6 +50,7 @@ fun PasteUrlScreen(navController: NavHostController? = null) {
                 tint = MaterialTheme.colorScheme.primary
             )
             Spacer(modifier = Modifier.height(16.dp))
+
             OutlinedTextField(
                 value = url,
                 onValueChange = { url = it },
@@ -51,27 +58,48 @@ fun PasteUrlScreen(navController: NavHostController? = null) {
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 3
             )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            TextButton(onClick = { url = readClipboard(context) ?: url }) {
+                Text("Panodan Yapıştır")
+            }
+
             Spacer(modifier = Modifier.height(16.dp))
             Button(
                 onClick = {
-                    if (url.isNotBlank()) {
-                        val platform = Platform.fromUrl(url)
-                        val download = Download(
-                            url = url,
-                            title = "Yeni indirme: ${platform.displayName}",
-                            fileName = url.substringAfterLast("/").take(50),
-                            platform = platform,
-                            mediaType = MediaType.UNKNOWN
-                        )
-                        repo.addDownload(download)
-                        navController?.popBackStack()
+                    if (url.isBlank()) return@Button
+                    loading = true
+                    status = "İndiriliyor..."
+                    scope.launch {
+                        val info = ExtractorRegistry.extract(url).getOrNull()
+                        if (info == null) {
+                            status = "URL çözümlenemedi"
+                            loading = false
+                            return@launch
+                        }
+                        val result = DownloadEngine.downloadAndSave(context, info)
+                        status = if (result.isSuccess) "Tamamlandı: ${'$'}{info.fileName}" else "Hata: ${'$'}{result.exceptionOrNull()?.message}"
+                        loading = false
                     }
                 },
-                enabled = url.isNotBlank(),
+                enabled = url.isNotBlank() && !loading,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("İndirmeyi Başlat")
+                if (loading) CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                else Text("İndirmeyi Başlat")
+            }
+
+            status?.let {
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(it, style = MaterialTheme.typography.bodyMedium)
             }
         }
     }
+}
+
+private fun readClipboard(context: Context): String? {
+    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+    val clip = cm?.primaryClip ?: return null
+    if (clip.itemCount == 0) return null
+    return clip.getItemAt(0).text?.toString()
 }
