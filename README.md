@@ -1,5 +1,7 @@
 # MediaGrab
 
+![GitHub Downloads](https://img.shields.io/github/downloads/omersusin/MediaGrab/total.svg)
+
 **Free, open-source media downloader for Android.** Grab images, video, and audio from
 1000+ websites — YouTube, Instagram, TikTok, X/Twitter, Reddit, Facebook, Pinterest,
 Twitch, Vimeo, SoundCloud, Bilibili, and many more — straight to
