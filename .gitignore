@@ -1,19 +1,20 @@
-*.iml
-.gradle
-/local.properties
-/.idea
-.DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
+# Gradle / build
+.gradle/
+build/
+*/build/
 local.properties
+captures/
+.cxx/
+
+# Android Studio / IDE
+.idea/
+*.iml
+.DS_Store
+
+# Keystore secrets — never commit
 *.jks
 *.keystore
+keystore.properties
+
+# Logs
 *.log
-*.hprof
-/app/build
-/app/release
-/app/debug
-**/build/
-.kotlin/

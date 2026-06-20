@@ -1,37 +1,42 @@
 package media.grab.os.ui.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
+import android.os.Build
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+
+private val Brand = Color(0xFF3D5AFE)
+private val BrandDark = Color(0xFF8C9EFF)
 
 private val LightColors = lightColorScheme(
-    primary = Color(0xFF6750A4),
-    onPrimary = Color.White,
-    secondary = Color(0xFF625B71),
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE)
+    primary = Brand,
+    secondary = Color(0xFF5C6BC0),
+    tertiary = Color(0xFF00ACC1)
 )
 
 private val DarkColors = darkColorScheme(
-    primary = Color(0xFFD0BCFF),
-    onPrimary = Color(0xFF381E72),
-    secondary = Color(0xFFCCC2DC),
-    background = Color(0xFF1C1B1F),
-    surface = Color(0xFF1C1B1F)
+    primary = BrandDark,
+    secondary = Color(0xFF7986CB),
+    tertiary = Color(0xFF4DD0E1)
 )
 
 @Composable
 fun MediaGrabTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    darkTheme: Boolean,
+    dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    val colors = if (darkTheme) DarkColors else LightColors
-    MaterialTheme(
-        colorScheme = colors,
-        typography = MaterialTheme.typography,
-        content = content
-    )
+    val context = LocalContext.current
+    val colorScheme = when {
+        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
+            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        darkTheme -> DarkColors
+        else -> LightColors
+    }
+    MaterialTheme(colorScheme = colorScheme, typography = androidx.compose.material3.Typography(), content = content)
 }

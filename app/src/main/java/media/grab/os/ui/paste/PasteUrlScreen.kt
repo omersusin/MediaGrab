@@ -1,195 +1,93 @@
 package media.grab.os.ui.paste
 
-import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentPaste
-import androidx.compose.material.icons.filled.Error
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.navigation.NavHostController
-import kotlinx.coroutines.launch
-import media.grab.os.extractor.ExtractorRegistry
-import media.grab.os.extractor.DownloadEngine
-import media.grab.os.ui.theme.ErrorText
+import media.grab.os.data.model.Platform
 
-sealed class DownloadResult {
-    object Idle : DownloadResult()
-    object Loading : DownloadResult()
-    data class Success(val fileName: String) : DownloadResult()
-    data class Error(val message: String) : DownloadResult()
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PasteUrlScreen(navController: NavHostController? = null) {
+fun PasteUrlScreen(vm: media.grab.os.ui.AppViewModel) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     var url by remember { mutableStateOf("") }
-    var result by remember { mutableStateOf<DownloadResult>(DownloadResult.Idle) }
+    var lastAction by remember { mutableStateOf("") }
+    val platform = remember(url) { if (url.isBlank()) null else Platform.fromUrl(url) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("URL Yapıştır") },
-                navigationIcon = {
-                    IconButton(onClick = { navController?.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                }
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text("Paste a link", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text(
+            "Works with 1000+ sites via the built-in yt-dlp engine. Pure image posts fall back to a metadata scraper.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        OutlinedTextField(
+            value = url,
+            onValueChange = { url = it },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Media URL") },
+            singleLine = false
+        )
+        if (platform != null) {
+            Text(
+                "Detected: ${platform.displayName}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary
             )
         }
-    ) { padding ->
-        Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+        OutlinedButton(onClick = { url = readClipboard(context) }, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Filled.ContentPaste, contentDescription = null)
+            Text("  Paste from clipboard")
+        }
+        Button(
+            onClick = { vm.download(url); lastAction = "Queued: $url"; url = "" },
+            enabled = url.isNotBlank(),
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Icon(
-                Icons.Default.ContentPaste,
-                contentDescription = null,
-                modifier = Modifier.size(64.dp),
-                tint = MaterialTheme.colorScheme.primary
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = url,
-                onValueChange = { url = it; if (result is DownloadResult.Error) result = DownloadResult.Idle },
-                label = { Text("Instagram, TikTok, X, Reddit URL") },
-                modifier = Modifier.fillMaxWidth(),
-                minLines = 3,
-                isError = result is DownloadResult.Error
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-
-            TextButton(onClick = { readClipboard(context)?.let { url = it } }) {
-                Text("Panodan Yapıştır")
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-            Button(
-                onClick = {
-                    if (url.isBlank()) return@Button
-                    result = DownloadResult.Loading
-                    scope.launch {
-                        val infoResult = ExtractorRegistry.extract(url)
-                        val info = infoResult.getOrNull()
-                        if (info == null) {
-                            result = DownloadResult.Error(
-                                infoResult.exceptionOrNull()?.message ?: "URL çözümlenemedi"
-                            )
-                            return@launch
-                        }
-                        val saveResult = DownloadEngine.downloadAndSave(context, info)
-                        result = saveResult.fold(
-                            onSuccess = { DownloadResult.Success(info.fileName) },
-                            onFailure = { DownloadResult.Error(it.message ?: "İndirme başarısız") }
-                        )
-                    }
-                },
-                enabled = url.isNotBlank() && result !is DownloadResult.Loading,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                if (result is DownloadResult.Loading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        strokeWidth = 2.dp
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("İndiriliyor...")
-                } else {
-                    Text("İndirmeyi Başlat")
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            when (val r = result) {
-                is DownloadResult.Success -> {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer
-                        )
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.CheckCircle, contentDescription = null)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column {
-                                Text("İndirme tamamlandı!", style = MaterialTheme.typography.titleSmall)
-                                Text(r.fileName, style = MaterialTheme.typography.bodySmall)
-                            }
-                        }
-                    }
-                }
-                is DownloadResult.Error -> {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer
-                        )
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                Icons.Default.Error,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onErrorContainer
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column {
-                                Text("Hata", style = MaterialTheme.typography.titleSmall)
-                                Text(
-                                    r.message,
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                            }
-                        }
-                    }
-                }
-                else -> {}
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Help text
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                )
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Desteklenen platformlar:", style = MaterialTheme.typography.titleSmall)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        "• Reddit (en iyi çalışır)\n• TikTok (public)\n• Twitter/X (public)\n• Instagram (public)\n• Diğer (og:video/image olan siteler)",
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-            }
+            Icon(Icons.Filled.Download, contentDescription = null)
+            Text("  Download")
+        }
+        OutlinedButton(
+            onClick = { vm.download(url, audioOnly = true); lastAction = "Queued audio: $url"; url = "" },
+            enabled = url.isNotBlank(),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(Icons.Filled.MusicNote, contentDescription = null)
+            Text("  Download audio only")
+        }
+        if (lastAction.isNotBlank()) {
+            Text(lastAction, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.tertiary)
         }
     }
 }
 
-private fun readClipboard(context: Context): String? {
-    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-    val clip = cm?.primaryClip ?: return null
-    if (clip.itemCount == 0) return null
-    return clip.getItemAt(0).text?.toString()
+private fun readClipboard(context: Context): String {
+    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    return cm.primaryClip?.getItemAt(0)?.text?.toString()?.trim().orEmpty()
 }

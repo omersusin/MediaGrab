@@ -1,58 +1,58 @@
 package media.grab.os.ui.onboarding
 
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material3.*
+import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.navigation.NavHostController
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun OnboardingScreen(navController: NavHostController? = null) {
-    Scaffold { padding ->
-        Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Icon(
-                Icons.Default.Download,
-                contentDescription = null,
-                modifier = Modifier.size(96.dp),
-                tint = MaterialTheme.colorScheme.primary
-            )
-            Spacer(modifier = Modifier.height(24.dp))
-            Text(
-                "MediaGrab",
-                style = MaterialTheme.typography.headlineLarge,
-                textAlign = TextAlign.Center
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                "Sosyal medyadan medya indir",
-                style = MaterialTheme.typography.bodyLarge,
-                textAlign = TextAlign.Center
-            )
-            Spacer(modifier = Modifier.height(48.dp))
-            Button(
-                onClick = { navController?.navigate("home") },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Başla")
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            TextButton(
-                onClick = { navController?.navigate("disclaimer") },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Sorumluluk Reddi")
-            }
+fun OnboardingScreen(onDone: () -> Unit) {
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Icon(
+            Icons.Filled.CloudDownload, contentDescription = null,
+            modifier = Modifier.size(96.dp).padding(top = 32.dp),
+            tint = MaterialTheme.colorScheme.primary
+        )
+        Text("Welcome to MediaGrab", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        Text(
+            "Download images, video and audio from 1000+ sites straight to your Downloads folder. Free, open-source, no ads, no tracking.",
+            style = MaterialTheme.typography.bodyMedium
+        )
+        Feature("Paste or share any link", "Share a URL from any app, or paste it on the Paste tab.")
+        Feature("One-tap floating button", "Enable Accessibility to grab media while browsing social apps.")
+        Feature("Saved to /Download/MediaGrab/", "Files land in your public Downloads via MediaStore — no extra permissions on Android 10+.")
+        Button(onClick = onDone, modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
+            Text("Get started")
+        }
+    }
+}
+
+@Composable
+private fun Feature(title: String, body: String) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp)) {
+            Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Text(body, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

@@ -4,31 +4,49 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.launch
-import media.grab.os.data.model.Download
-import media.grab.os.data.model.MediaType
 import media.grab.os.data.model.Platform
-import media.grab.os.data.repository.DownloadRepository
-import media.grab.os.extractor.ExtractorRegistry
-import media.grab.os.extractor.DownloadEngine
+import media.grab.os.download.DownloadService
 import media.grab.os.ui.theme.MediaGrabTheme
+import android.widget.Toast
+import androidx.compose.foundation.isSystemInDarkTheme
 
 class ShareReceiverActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val sharedUrl = extractUrl(intent)
+        val shared = extractUrl(intent)
+        if (shared == null) {
+            Toast.makeText(this, "No link found in shared text.", Toast.LENGTH_SHORT).show()
+            finish()
+            return
+        }
         setContent {
-            MediaGrabTheme {
-                ShareReceiverScreen(
-                    url = sharedUrl,
-                    onDownload = { url -> startDownload(url) }
+            MediaGrabTheme(darkTheme = isSystemInDarkTheme()) {
+                ConfirmDialog(
+                    url = shared,
+                    onDownload = { audioOnly ->
+                        DownloadService.start(this, shared, audioOnly)
+                        Toast.makeText(this, "MediaGrab: download queued", Toast.LENGTH_SHORT).show()
+                        finish()
+                    },
+                    onCancel = { finish() }
                 )
             }
         }
@@ -36,40 +54,34 @@ class ShareReceiverActivity : ComponentActivity() {
 
     private fun extractUrl(intent: Intent?): String? {
         if (intent?.action != Intent.ACTION_SEND) return null
-        return intent.getStringExtra(Intent.EXTRA_TEXT)?.let { text ->
-            Regex("https?://[\\S]+").find(text)?.value
-        }
-    }
-
-    private fun startDownload(url: String) {
-        val scope = kotlinx.coroutines.MainScope()
-        scope.launch {
-            val info = ExtractorRegistry.extract(url).getOrNull() ?: return@launch
-            DownloadEngine.downloadAndSave(applicationContext, info)
-        }
+        val text = intent.getStringExtra(Intent.EXTRA_TEXT) ?: return null
+        return Regex("https?://[^\\s]+").find(text)?.value?.trim()
     }
 }
 
 @Composable
-fun ShareReceiverScreen(url: String?, onDownload: (String) -> Unit) {
-    Surface(modifier = Modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text("MediaGrab", style = MaterialTheme.typography.headlineMedium)
-            Spacer(Modifier.height(16.dp))
-            if (url != null) {
-                Text("URL bulundu:", style = MaterialTheme.typography.bodyLarge)
-                Text(url, style = MaterialTheme.typography.bodySmall, maxLines = 2)
-                Spacer(Modifier.height(16.dp))
-                Button(onClick = { onDownload(url) }) {
-                    Text("İndirmeyi Başlat")
+private fun ConfirmDialog(url: String, onDownload: (Boolean) -> Unit, onCancel: () -> Unit) {
+    val platform = Platform.fromUrl(url)
+    AlertDialog(
+        onDismissRequest = onCancel,
+        title = { Text("Download from ${platform.displayName}?") },
+        text = {
+            Text(url, maxLines = 3, overflow = TextOverflow.Ellipsis)
+        },
+        confirmButton = {
+            Button(onClick = { onDownload(false) }) {
+                Icon(Icons.Filled.Download, contentDescription = null)
+                Text("  Download")
+            }
+        },
+        dismissButton = {
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                OutlinedButton(onClick = { onDownload(true) }, modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+                    Icon(Icons.Filled.MusicNote, contentDescription = null)
+                    Text("  Audio only")
                 }
-            } else {
-                Text("Geçerli URL bulunamadı", style = MaterialTheme.typography.bodyMedium)
+                TextButton(onClick = onCancel) { Text("Cancel") }
             }
         }
-    }
+    )
 }
