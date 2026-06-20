@@ -2,9 +2,6 @@ package media.grab.os.extractor
 
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import media.grab.os.data.model.Download
 import media.grab.os.data.model.DownloadStatus
@@ -27,20 +24,27 @@ object DownloadEngine {
             status = DownloadStatus.DOWNLOADING
         )
         repository.addDownload(download)
+        val notifId = download.id.hashCode()
 
-        runCatching {
+        try {
+            NotificationHelper.showDownloading(context, notifId, mediaInfo.fileName, 0)
             val response = HttpClient.getAsync(mediaInfo.url)
             if (!response.isSuccessful) error("HTTP ${'$'}{response.code}")
+
             val bytes = response.body?.bytes() ?: error("Empty body")
-            val mime = response.body?.contentType()?.toString()?.split(";")?.firstOrNull() ?: "image/jpeg"
+            val mime = response.body?.contentType()?.toString()?.split(";")?.firstOrNull()?.trim()
+                ?: "image/jpeg"
 
             val saved = FileSaver.save(context, bytes, mediaInfo.fileName, mime)
                 ?: error("Save failed")
 
             repository.updateStatus(download.id, DownloadStatus.COMPLETED)
+            NotificationHelper.showCompleted(context, notifId, mediaInfo.fileName)
             saved
-        }.onFailure { e ->
-            repository.updateStatus(download.id, DownloadStatus.FAILED, e.message)
+        } catch (e: Exception) {
+            repository.updateStatus(download.id, DownloadStatus.FAILED, e.message ?: "Unknown error")
+            NotificationHelper.showFailed(context, notifId, mediaInfo.fileName, e.message ?: "Unknown")
+            throw e
         }
     }
 }
