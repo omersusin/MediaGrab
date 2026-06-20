@@ -18,3 +18,5 @@ keystore.properties
 
 # Logs
 *.log
+*.keystore
+keystore.b64
